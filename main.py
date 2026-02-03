@@ -3,6 +3,7 @@ import logging
 import re
 import random
 import time
+import os
 from difflib import SequenceMatcher
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
@@ -15,10 +16,13 @@ logging.basicConfig(
 )
 
 # --- Configuration ---
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN" # Put this in Railway Variables
+TOKEN = os.getenv("TOKEN") # Put this in Railway Variables
 MAX_DAILY_POINTS = 100
 SPAM_THRESHOLD_SECONDS = 3
 REPEAT_THRESHOLD = 0.8 # 80% similarity for ProMax
+
+if not TOKEN:
+    raise ValueError("No TOKEN found! Please add TOKEN to Railway Variables.")
 
 # --- In-Memory Cache for Spam Detection ---
 # Format: {user_id: {'last_time': timestamp, 'last_text': "string", 'repeat_count': int}}
