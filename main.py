@@ -47,14 +47,6 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(db_user)
         session.commit()
 
-    # --- Feature 3: Full English Nickname Detection ---
-    # Regex checks if name is purely ASCII/English characters
-    if re.fullmatch(r'[A-Za-z0-9\s]+', first_name):
-        await update.message.delete()
-        warning_msg = await update.message.reply_text(f"⚠️ @{username}, please change your nickname. Full English names are not allowed.")
-        session.close()
-        # Schedule to delete warning after 10s (optional)
-        return
 
     # --- Feature 1: Anti-Spam Logic (Pro & ProMax) ---
     current_time = time.time()
