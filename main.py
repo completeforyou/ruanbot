@@ -1,11 +1,11 @@
 # main.py
 import logging
-import re
+from datetime import datetime, timedelta
 import random
 import time
 import os
 from difflib import SequenceMatcher
-from telegram import Update
+from telegram import Update, ChatPermissions
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from database import Session, User, init_db
 
@@ -25,84 +25,108 @@ if not TOKEN:
     raise ValueError("No TOKEN found! Please add TOKEN to Railway Variables.")
 
 # --- In-Memory Cache for Spam Detection ---
-# Format: {user_id: {'last_time': timestamp, 'last_text': "string", 'repeat_count': int}}
-user_cache = {}
+spam_cache = {}          # Tracks message timestamps: {user_id: [t1, t2...]}
+shadow_mutes = {}        # Tracks admin penalty end times: {user_id: timestamp_end}
 
 async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.from_user:
         return
 
-    user_id = update.message.from_user.id
-    username = update.message.from_user.username or ""
-    first_name = update.message.from_user.first_name or ""
-    text = update.message.text or ""
+    user = update.message.from_user
+    chat_id = update.message.chat_id
     
+    # Check Admin Status
+    try:
+        member = await context.bot.get_chat_member(chat_id, user.id)
+        is_admin = member.status in ['administrator', 'creator']
+    except:
+        is_admin = False
+
     # Database Session
     session = Session()
-    db_user = session.query(User).filter_by(id=user_id).first()
+    db_user = session.query(User).filter_by(id=user.id).first()
     
-    # Create user if not exists
     if not db_user:
-        db_user = User(id=user_id, username=username, full_name=first_name)
+        db_user = User(id=user.id, username=user.username, full_name=user.first_name)
         session.add(db_user)
         session.commit()
 
-
-    # --- Feature 1: Anti-Spam Logic (Pro & ProMax) ---
-    current_time = time.time()
-    user_data = user_cache.get(user_id, {'last_time': 0, 'last_text': "", 'repeat_count': 0})
+    # ==================================================================
+    # FEATURE 1: ANTI-SPAM (Sliding Window: >4 msgs in 3 sec)
+    # ==================================================================
+    current_time = datetime.now().timestamp()
     
-    is_spam = False
-    deduct_points = 0
+    # Initialize cache for user
+    if user.id not in spam_cache:
+        spam_cache[user.id] = []
     
-    # 1. Frequency Check (Basic)
-    if current_time - user_data['last_time'] < 1: # 1 second limit
-        is_spam = True
+    # Add current message time
+    spam_cache[user.id].append(current_time)
+    
+    # Filter: Keep only timestamps from the last 3 seconds
+    spam_cache[user.id] = [t for t in spam_cache[user.id] if current_time - t <= 3.0]
+    
+    # CHECK: Did they breach the limit?
+    if len(spam_cache[user.id]) > 4:
+        # Clear cache so detection doesn't trigger on every single message after the 4th
+        spam_cache[user.id] = []
         
-    # 2. Semantic Repetition (ProMax)
-    similarity = SequenceMatcher(None, text, user_data['last_text']).ratio()
-    if similarity > REPEAT_THRESHOLD and (current_time - user_data['last_time'] < 5):
-        user_data['repeat_count'] += 1
-    else:
-        user_data['repeat_count'] = 0 # Reset if text is different or time passed
+        penalty_end_time = datetime.now() + timedelta(minutes=3)
         
-    if user_data['repeat_count'] >= 3: # ProMax Trigger
-        is_spam = True
-        deduct_points = 50 # Example penalty
-        await update.message.delete()
-        await update.message.reply_text("🚫 Spam detected (ProMax). Points deducted.")
-    
-    # Update Cache
-    user_data['last_time'] = current_time
-    user_data['last_text'] = text
-    user_cache[user_id] = user_data
-
-    if is_spam:
-        if deduct_points > 0:
-            db_user.points = max(0, db_user.points - deduct_points)
-            session.commit()
+        if is_admin:
+            # --- PUNISHMENT: ADMIN (Shadow Mute) ---
+            # Set a flag in memory that expires in 3 mins
+            shadow_mutes[user.id] = penalty_end_time.timestamp()
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"⚠️ {user.mention_html()} is spamming! \n🛡 **Admin Penalty:** No rewards for 3 minutes.",
+                parse_mode='HTML'
+            )
+        else:
+            # --- PUNISHMENT: USER (Real Mute) ---
+            try:
+                await context.bot.restrict_chat_member(
+                    chat_id=chat_id,
+                    user_id=user.id,
+                    permissions=ChatPermissions(can_send_messages=False),
+                    until_date=penalty_end_time
+                )
+                await context.bot.send_message(
+                    chat_id=chat_id, 
+                    text=f"🚫 {user.mention_html()} has been muted for 3 minutes (Spamming).",
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                print(f"Failed to mute user: {e}")
+        
         session.close()
-        return # Stop processing rewards if spam
+        return # Stop processing (No rewards for this spam message)
 
-    # --- Feature 4: Activity Rewards ---
-    # Check if daily cap reached
-    # (Simplified logic: In production, reset daily counts via cron/scheduler)
-    if db_user.points < MAX_DAILY_POINTS:
-        chance = random.random()
-        reward = 0
-        
-        # 10% chance for reward
-        if chance < 0.10: 
-            reward = 5
-            # 1% chance for Crit (Double)
-            if chance < 0.01:
-                reward = 10
-                await update.message.reply_text("🔥 CRIT! Double Points!")
-            
-            db_user.points += reward
-            db_user.msg_count_total += 1
-            session.commit()
-            
+    # ==================================================================
+    # FEATURE 4: ACTIVITY REWARD (10% Chance -> 1 Point)
+    # ==================================================================
+    
+    # Check if user is Shadow Muted (Admin Penalty)
+    is_shadow_muted = False
+    if user.id in shadow_mutes:
+        if current_time < shadow_mutes[user.id]:
+            is_shadow_muted = True
+        else:
+            # Penalty expired
+            del shadow_mutes[user.id]
+
+    if not is_shadow_muted:
+        # 10% chance to earn 1 point
+        if random.random() < 0.10:
+            db_user.points += 1
+            # Optional: Notify user occasionally? 
+            # await update.message.reply_text("🍀 You found a point!")
+
+    # Update total stats
+    db_user.msg_count_total += 1
+
+    session.commit()
     session.close()
 
 if __name__ == '__main__':
