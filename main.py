@@ -80,7 +80,7 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"⚠️ {user.mention_html()} is spamming! \n🛡 **Admin Penalty:** No rewards for 3 minutes.",
+                text=f"⚠️ {user.mention_html()} 刷屏! \n🛡 **管理惩罚:** 3 分钟内发言无法获得积分",
                 parse_mode='HTML'
             )
         else:
@@ -94,7 +94,7 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, 
-                    text=f"🚫 {user.mention_html()} has been muted for 3 minutes (Spamming).",
+                    text=f"🚫 {user.mention_html()} 被禁言 3 分钟 (刷屏).",
                     parse_mode='HTML'
                 )
             except Exception as e:
