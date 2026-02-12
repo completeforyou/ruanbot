@@ -24,7 +24,7 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return # No points for bad admins!
 
     # 4. Award Points (10% Chance)
-    CHANCE = 1.0
+    CHANCE = 0.15
     roll = random.random()
     if roll < CHANCE:
         economy.add_points(user.id, 1.0)
