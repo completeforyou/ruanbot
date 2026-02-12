@@ -28,3 +28,21 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     roll = random.random()
     if roll < CHANCE:
         economy.add_points(user.id, 1.0)
+
+async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Responds to exact match '积分' with current balance.
+    """
+    if not update.message:
+        return
+
+    user = update.effective_user
+    
+    # Get clean data from DB
+    balance = economy.get_user_balance(user.id)
+    
+    # Reply to user
+    await update.message.reply_text(
+        f"💰 **{user.first_name}**, 当前积分: `{balance:.1f}`",
+        parse_mode='Markdown'
+    )

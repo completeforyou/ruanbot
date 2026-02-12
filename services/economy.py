@@ -48,3 +48,14 @@ def increment_stats(user_id: int):
         print(f"❌ DB Error stats: {e}")
     finally:
         session.close()
+
+def get_user_balance(user_id: int) -> float:
+    """
+    Fetches the current point balance for a user.
+    """
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=user_id).first()
+        return user.points if user else 0.0
+    finally:
+        session.close()

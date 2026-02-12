@@ -38,11 +38,14 @@ if __name__ == '__main__':
     
     # --- Register Handlers ---
     
-    # 1. Admin Commands
+    # Admin Commands
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
+
+    # Economy Commands
+    application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))
     
-    # 2. Global Message Handler (Text & No Commands)
+    # Global Message Handler (Must be last)
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), global_message_handler))
     
     print("Bot is running...")
