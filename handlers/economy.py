@@ -24,7 +24,7 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return # No points for bad admins!
 
     # 4. Award Points (10% Chance)
-    if random.random() < 0.10:
+    CHANCE = 1.0
+    roll = random.random()
+    if roll < CHANCE:
         economy.add_points(user.id, 1.0)
-        # Optional: Uncomment to notify user
-        # await update.message.reply_text("🍀 Lucky! You found +1 Point.")
