@@ -21,10 +21,12 @@ class User(Base):
     id = Column(BigInteger, primary_key=True) # Telegram User ID
     username = Column(String)
     full_name = Column(String)
-    points = Column(Float, default=0.0)       # Feature 4, 17
-    warnings = Column(Integer, default=0)     # Feature 1
     
-    # Activity Stats (Feature 9, 11)
+    points = Column(Float, default=0.0)       # Feature 4 Points system
+    
+    warnings = Column(Integer, default=0)     # Feature 1 Warming system
+    
+    # Activity Stats
     msg_count_total = Column(Integer, default=0)
     msg_count_daily = Column(Integer, default=0)
     last_msg_date = Column(DateTime, default=datetime.utcnow)
