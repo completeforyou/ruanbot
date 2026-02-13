@@ -22,15 +22,15 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = []
     
     for p in products:
+        cost_int = int(p.cost)
         msg += f"🎁 {p.name}\n"
-        msg += f"   • 价格: `{p.cost}` 积分\n"
+        msg += f"   • 价格: `{cost_int}` 积分\n"
         msg += f"   • 库存: {p.stock}\n"
-        # msg += f"   • Chance: {p.chance * 100:.1f}%\n\n" # Optional: Hide chance?
         msg += "\n"
         
         # Add a button for this specific product
         # Callback data format: "draw_{product_id}"
-        keyboard.append([InlineKeyboardButton(f"点我抽奖-{p.name} ({p.cost} 分)", callback_data=f"draw_{p.id}")])
+        keyboard.append([InlineKeyboardButton(f"点我抽奖-{p.name} ({cost_int} 分)", callback_data=f"draw_{p.id}")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode='Markdown')
@@ -62,6 +62,7 @@ async def handle_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # 3. Deduct Points (Atomic-ish within transaction)
         db_user.points -= product.cost
+        cost_int = int(product.cost)
         
         # 4. Roll the Dice
         # Generate random 0.0 to 1.0. If roll < chance, they win.
@@ -77,14 +78,14 @@ async def handle_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=query.message.chat_id,
                 text=f"🎉 恭喜！！！ 🎉\n\n"
                      f"👤 {user.mention_html()} 抽中 {product.name}!\n"
-                     f"📉 花费: {product.cost} 分\n"
+                     f"📉 花费: {cost_int} 分\n"
                      f"📞 请联系 @qingruanjiang_bot 兑奖.",
                 parse_mode='HTML'
             )
             await query.answer("🎉 恭喜您中奖！", show_alert=True)
         else:
             session.commit() # Save the point deduction
-            await query.answer(f"📉 运气不好，没抽中! 你花费了 {product.cost} 分", show_alert=True)
+            await query.answer(f"📉 运气不好，没抽中! 你花费了 {cost_int} 分", show_alert=True)
             
     except Exception as e:
         print(f"Draw Error: {e}")

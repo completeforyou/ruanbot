@@ -43,6 +43,6 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Reply to user
     await update.message.reply_text(
-        f"💰 **{user.first_name}**, 当前积分: `{balance:.1f}`",
+        f"💰 {user.first_name}, 当前积分: `{int(balance)}`",
         parse_mode='Markdown'
     )

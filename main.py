@@ -3,7 +3,7 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin,admin_products, redemption
+from handlers import moderation, economy, admin,admin_products, redemption, admin_filter
 
 # Logging Setup
 logging.basicConfig(
@@ -38,10 +38,15 @@ if __name__ == '__main__':
     
     # --- Register Handlers ---
     
-    # Admin Commands
+    # Admin Handerls
     application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
+
+    # Filter Management (Private Chat)
+    application.add_handler(CommandHandler("add_word", admin_filter.add_word_command))
+    application.add_handler(CommandHandler("del_word", admin_filter.del_word_command))
+    application.add_handler(CommandHandler("list_words", admin_filter.list_words_command))
 
     # Redemption Commands
     application.add_handler(CommandHandler("lottery", redemption.list_products)) # Shows the list
@@ -52,6 +57,8 @@ if __name__ == '__main__':
     
     # Global Message Handler (Must be last)
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), global_message_handler))
+    # Also handle Captions (Photos with text) for filtering
+    application.add_handler(MessageHandler(filters.CAPTION, global_message_handler))
     
     print("Bot is running...")
     application.run_polling()

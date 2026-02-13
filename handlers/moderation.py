@@ -2,7 +2,7 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
-from services import antispam
+from services import antispam, content_filter
 import config
 
 async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -15,8 +15,41 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
     user = update.effective_user
     chat = update.effective_chat
+
+    # --- PHASE 1: CONTENT FILTER ---
+    # Check for content violations
+    violation = content_filter.check_violation(update.message)
     
-    # 1. Check Logic
+    if violation:
+        # 1. Check Admin (Admins bypass filters)
+        try:
+            member = await context.bot.get_chat_member(chat.id, user.id)
+            is_admin = member.status in ['administrator', 'creator']
+        except:
+            is_admin = False
+
+        if not is_admin:
+            try:
+                # DELETE the bad message
+                await update.message.delete()
+                
+                # Send a temporary warning
+                warn_msg = await context.bot.send_message(
+                    chat_id=chat.id,
+                    text=f"⚠️ {user.mention_html()} 信息已删除: <b>{violation}</b>",
+                    parse_mode='HTML'
+                )
+                
+                # (Optional) Delete warning after 5 seconds to keep chat clean
+                context.job_queue.run_once(lambda ctx: ctx.bot.delete_message(chat.id, warn_msg.message_id), 5)
+                
+            except Exception as e:
+                print(f"Failed to delete message: {e}")
+            
+            return True # Stop processing (No points for you!)
+    
+    # --- PHASE 2: ANTI-SPAM ---
+    # Only run if content was safe
     is_spam = antispam.check_is_spamming(
         user.id, 
         limit=config.SPAM_MESSAGE_LIMIT, 
