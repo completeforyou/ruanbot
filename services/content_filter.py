@@ -65,19 +65,13 @@ def check_violation(message: Message) -> str | None:
     if not _cache_loaded:
         load_cache()
 
-    # 1. Check Forward from Channel
-    # Different versions of python-telegram-bot handle this differently.
-    # We check both the old way (forward_from_chat) and new way (forward_origin).
-    if message.forward_from_chat and message.forward_from_chat.type == 'channel':
-        return "Channel Forward"
-    
-    # Newer PTB versions use forward_origin
-    if hasattr(message, 'forward_origin') and message.forward_origin:
-        if message.forward_origin.type == 'channel':
+    # 1. Check Forward from Channel (Updated for PTB v21+)
+    # We use getattr safely in case the attribute doesn't exist
+    if getattr(message, 'forward_origin', None):
+        if getattr(message.forward_origin, 'type', None) == 'channel':
             return "Channel Forward"
 
     # 2. Check Links
-    # We check entities for URLs or Text Links
     if message.entities or message.caption_entities:
         entities = message.entities or message.caption_entities
         for entity in entities:
@@ -89,7 +83,6 @@ def check_violation(message: Message) -> str | None:
     if text:
         text_lower = text.lower()
         for bad_word in _word_cache:
-            # Simple substring check (Can be improved with regex for word boundaries)
             if bad_word in text_lower:
                 return f"Sensitive Word: {bad_word}"
 
