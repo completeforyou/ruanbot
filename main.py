@@ -3,7 +3,7 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin
+from handlers import moderation, economy, admin,admin_products, redemption
 
 # Logging Setup
 logging.basicConfig(
@@ -39,8 +39,13 @@ if __name__ == '__main__':
     # --- Register Handlers ---
     
     # Admin Commands
+    application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
+
+    # Redemption Commands
+    application.add_handler(CommandHandler("lottery", redemption.list_products)) # Shows the list
+    application.add_handler(CallbackQueryHandler(redemption.handle_draw, pattern="^draw_")) # Handles the button
 
     # Economy Commands
     application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))

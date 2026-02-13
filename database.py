@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateT
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import os
+import config
 
 # Get DATABASE_URL from Railway environment variables
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -43,6 +44,16 @@ class User(Base):
 
     # Feature 2: Join verification status
     is_muted = Column(Boolean, default=False)
+
+class Product(Base):
+    __tablename__ = 'products'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    cost = Column(Float, nullable=False)      # Points to play
+    chance = Column(Float, nullable=False)    # 0.0 to 1.0 (e.g., 0.1 = 10%)
+    stock = Column(Integer, default=1)        # How many available
+    is_active = Column(Boolean, default=True) # Soft delete
 
 def init_db():
     Base.metadata.create_all(engine)
