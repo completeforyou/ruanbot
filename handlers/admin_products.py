@@ -16,7 +16,7 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎁 **加入新商品**\n\n"
         "请输入商品名称:\n"
-        "(打 /cancel 停止操作)",
+        "(输入 /cancel 停止操作)",
         parse_mode='Markdown'
     )
     return NAME
