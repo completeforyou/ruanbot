@@ -3,13 +3,16 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin,admin_products, redemption, admin_filter
+from handlers import moderation, economy, admin,admin_products, redemption, admin_filter, verification
 
 # Logging Setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 async def global_message_handler(update, context):
     """
@@ -37,7 +40,8 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(config.TOKEN).build()
     
     # --- Register Handlers ---
-    
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
+    application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
     # Admin Handerls
     application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
