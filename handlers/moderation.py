@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
 from services import antispam, content_filter
 import config
+import asyncio
 
 async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -39,9 +40,16 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
                     text=f"⚠️ {user.mention_html()} 信息已删除: <b>{violation}</b>",
                     parse_mode='HTML'
                 )
+                # Auto-delete the warning after 5 seconds
+                async def delete_later(chat_id, msg_id):
+                    await asyncio.sleep(5) # Wait 5 seconds
+                    try:
+                        await context.bot.delete_message(chat_id, msg_id)
+                    except Exception as e:
+                        print(f"Cleanup failed: {e}")
                 
-                # (Optional) Delete warning after 5 seconds to keep chat clean
-                context.job_queue.run_once(lambda ctx: ctx.bot.delete_message(chat.id, warn_msg.message_id), 5)
+                # Run the deletion in the background without blocking the bot
+                asyncio.create_task(delete_later(chat.id, warn_msg.message_id))
                 
             except Exception as e:
                 print(f"Failed to delete message: {e}")
