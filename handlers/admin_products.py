@@ -14,7 +14,7 @@ product_cache = {}
 @private_chat_only
 async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🎁 **加入新商品**\n\n"
+        "🎁 加入新商品\n\n"
         "请输入商品名称:\n"
         "(输入 /cancel 停止操作)",
         parse_mode='Markdown'
@@ -67,11 +67,11 @@ async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
         
         await update.message.reply_text(
-            f"✅ **Product Added!**\n\n"
-            f"📌 Name: {data['name']}\n"
-            f"💰 Cost: {data['cost']}\n"
-            f"🎲 Chance: {data['chance']*100:.1f}%\n"
-            f"📦 Stock: {stock}",
+            f"✅ 商品加入!\n\n"
+            f"📌 名称: {data['name']}\n"
+            f"💰 积分: {data['cost']}\n"
+            f"🎲 概率: {data['chance']*100:.1f}%\n"
+            f"📦 库存: {stock}",
             parse_mode='Markdown'
         )
         return ConversationHandler.END
@@ -80,7 +80,7 @@ async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STOCK
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚫 Operation cancelled.")
+    await update.message.reply_text("🚫 已取消操作")
     return ConversationHandler.END
 
 # Handler Registry

@@ -18,11 +18,11 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Build the message
-    msg = "🎰 **抽奖中心** 🎰\n\n"
+    msg = "🎰 抽奖中心 🎰\n\n"
     keyboard = []
     
     for p in products:
-        msg += f"🎁 **{p.name}**\n"
+        msg += f"🎁 {p.name}\n"
         msg += f"   • 价格: `{p.cost}` 积分\n"
         msg += f"   • 库存: {p.stock}\n"
         # msg += f"   • Chance: {p.chance * 100:.1f}%\n\n" # Optional: Hide chance?
@@ -30,7 +30,7 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Add a button for this specific product
         # Callback data format: "draw_{product_id}"
-        keyboard.append([InlineKeyboardButton(f"点我抽奖 - {p.name} ({p.cost} pts)", callback_data=f"draw_{p.id}")])
+        keyboard.append([InlineKeyboardButton(f"点我抽奖-{p.name} ({p.cost} 分)", callback_data=f"draw_{p.id}")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode='Markdown')
@@ -57,7 +57,7 @@ async def handle_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if not db_user or db_user.points < product.cost:
-            await query.answer(f"❌ 积分不足! 你目前有 {db_user.points if db_user else 0}.", show_alert=True)
+            await query.answer(f"❌ 积分不足! 你目前有 {db_user.points if db_user else 0} 分", show_alert=True)
             return
 
         # 3. Deduct Points (Atomic-ish within transaction)
@@ -75,16 +75,16 @@ async def handle_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Announce Win in Group
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 **恭喜！！！** 🎉\n\n"
-                     f"👤 {user.mention_html()} 抽中 **{product.name}**!\n"
+                text=f"🎉 恭喜！！！ 🎉\n\n"
+                     f"👤 {user.mention_html()} 抽中 {product.name}!\n"
                      f"📉 花费: {product.cost} 分\n"
                      f"📞 请联系 @qingruanjiang_bot 兑奖.",
                 parse_mode='HTML'
             )
-            await query.answer("🎉 YOU WON! Check the message!", show_alert=True)
+            await query.answer("🎉 恭喜您中奖！", show_alert=True)
         else:
             session.commit() # Save the point deduction
-            await query.answer(f"📉 运气不好，没抽中! 你花费了 {product.cost} 分. 再试一次!", show_alert=True)
+            await query.answer(f"📉 运气不好，没抽中! 你花费了 {product.cost} 分", show_alert=True)
             
     except Exception as e:
         print(f"Draw Error: {e}")
