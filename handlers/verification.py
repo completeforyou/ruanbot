@@ -82,6 +82,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     time_taken = time.time() - v_data['time']
     correct_answer = v_data['correct']
     
+    # Clear memory
     verification.clear_verification(target_user_id)
     
     # --- RULE 1: Anti-Bot Check (< 1 second) ---
@@ -109,7 +110,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
             )
             
-            # 2. Mark as verified in DB
+            # 2. Mark as verified in DB AND Fetch Welcome Config
             session = Session()
             db_user = session.query(User).filter_by(id=target_user_id).first()
             if not db_user:
@@ -118,33 +119,47 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             else:
                 db_user.is_verified = True
             
-            # Fetch Custom Welcome Config
-            config = session.query(WelcomeConfig).filter_by(id=1).first()
+            # We copy the data into a plain dictionary so it survives after session.close()
+            config_obj = session.query(WelcomeConfig).filter_by(id=1).first()
+            welcome_data = None
+            
+            if config_obj:
+                welcome_data = {
+                    'text': config_obj.text,
+                    'media_id': config_obj.media_file_id,
+                    'media_type': config_obj.media_type,
+                    'buttons': config_obj.buttons
+                }
+            
             session.commit()
             session.close()
 
-            # 3. Clean up the Captcha Message
+            # 4. Clean up the Captcha Message
             await query.answer("✅ Verification successful! You can now chat.", show_alert=True)
             await query.message.delete()
             
-            # --- NEW: 4. Send the Grand Personalized Welcome Message ---
-            base_text = config.text if config and config.text else "🎉 Welcome to the group, {user}!"
+            # 5. Send the Grand Personalized Welcome Message
+            # Now we use 'welcome_data' (the safe dictionary) instead of 'config'
+            base_text = welcome_data['text'] if welcome_data and welcome_data['text'] else "🎉 Welcome to the group, {user}!"
             final_text = base_text.replace("{user}", clicker.mention_html())
 
             keyboard = []
-            if config and config.buttons:
-                for btn in config.buttons:
+            if welcome_data and welcome_data['buttons']:
+                for btn in welcome_data['buttons']:
                     keyboard.append([InlineKeyboardButton(btn[0], url=btn[1])])
             reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
             
             # Send Media/Text
-            if config and config.media_file_id:
-                if config.media_type == 'photo':
-                    await context.bot.send_photo(chat_id=chat.id, photo=config.media_file_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
-                elif config.media_type == 'video':
-                    await context.bot.send_video(chat_id=chat.id, video=config.media_file_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
-                elif config.media_type == 'animation':
-                    await context.bot.send_animation(chat_id=chat.id, animation=config.media_file_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
+            if welcome_data and welcome_data['media_id']:
+                m_id = welcome_data['media_id']
+                m_type = welcome_data['media_type']
+                
+                if m_type == 'photo':
+                    await context.bot.send_photo(chat_id=chat.id, photo=m_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
+                elif m_type == 'video':
+                    await context.bot.send_video(chat_id=chat.id, video=m_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
+                elif m_type == 'animation':
+                    await context.bot.send_animation(chat_id=chat.id, animation=m_id, caption=final_text, reply_markup=reply_markup, parse_mode='HTML')
             else:
                 await context.bot.send_message(chat_id=chat.id, text=final_text, reply_markup=reply_markup, parse_mode='HTML')
 
