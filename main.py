@@ -5,6 +5,7 @@ from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
 from handlers import moderation, economy, admin,admin_products, redemption, verification, admin_welcome, shop
 from services.antispam import cleanup_cache
+from telegram.request import HTTPXRequest
 
 # Logging Setup
 logging.basicConfig(
@@ -36,9 +37,9 @@ if __name__ == '__main__':
     if not config.TOKEN:
         print("Error: TOKEN not found in config.py")
         exit(1)
-
+    req = HTTPXRequest(connection_pool_size=8, read_timeout=60, connect_timeout=60)
     # Build App
-    application = ApplicationBuilder().token(config.TOKEN).build()
+    application = ApplicationBuilder().token(config.TOKEN).request(req).build()
 
     # --- BACKGROUND JOBS (Janitor) ---
     # Run every 60 minutes (3600 seconds)

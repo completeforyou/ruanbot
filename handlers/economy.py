@@ -44,7 +44,7 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Reply to user
     await update.message.reply_text(
-        f"💰 {user.first_name}, 当前积分: `{int(balance)}`\n🎫 兑奖券: `{int(vouchers)}`",
+        f"💰 {user.first_name}, 当前积分: `{int(balance)}`\n🎟 兑奖券: `{int(vouchers)}`",
         parse_mode='Markdown'
     )
 
