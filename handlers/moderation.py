@@ -2,9 +2,8 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
-from services import antispam, content_filter
+from services import antispam
 import config
-import asyncio
 
 async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
