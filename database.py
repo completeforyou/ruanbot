@@ -55,10 +55,6 @@ class Product(Base):
     stock = Column(Integer, default=1)        # How many available
     is_active = Column(Boolean, default=True) # Soft delete
 
-class SensitiveWord(Base):
-    __tablename__ = 'sensitive_words'
-    word = Column(String, primary_key=True) # The word itself is the ID
-
 class WelcomeConfig(Base):
     __tablename__ = 'welcome_config'
     

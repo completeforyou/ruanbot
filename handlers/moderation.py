@@ -16,45 +16,6 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
     user = update.effective_user
     chat = update.effective_chat
-
-    # --- PHASE 1: CONTENT FILTER ---
-    # Check for content violations
-    violation = content_filter.check_violation(update.message)
-    
-    if violation:
-        # 1. Check Admin (Admins bypass filters)
-        try:
-            member = await context.bot.get_chat_member(chat.id, user.id)
-            is_admin = member.status in ['administrator', 'creator']
-        except:
-            is_admin = False
-
-        if not is_admin:
-            try:
-                # DELETE the bad message
-                await update.message.delete()
-                
-                # Send a temporary warning
-                warn_msg = await context.bot.send_message(
-                    chat_id=chat.id,
-                    text=f"⚠️ {user.mention_html()} 信息已删除: <b>{violation}</b>",
-                    parse_mode='HTML'
-                )
-                # Auto-delete the warning after 5 seconds
-                async def delete_later(chat_id, msg_id):
-                    await asyncio.sleep(5) # Wait 5 seconds
-                    try:
-                        await context.bot.delete_message(chat_id, msg_id)
-                    except Exception as e:
-                        print(f"Cleanup failed: {e}")
-                
-                # Run the deletion in the background without blocking the bot
-                asyncio.create_task(delete_later(chat.id, warn_msg.message_id))
-                
-            except Exception as e:
-                print(f"Failed to delete message: {e}")
-            
-            return True # Stop processing (No points for you!)
     
     # --- PHASE 2: ANTI-SPAM ---
     # Only run if content was safe
