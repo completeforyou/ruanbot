@@ -40,7 +40,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
-        await update.message.reply_text("⚠️ Usage: `/give_voucher <user_id> <amount>`", parse_mode='Markdown')
+        await update.message.reply_text("⚠️ Usage: `/give <user_id> <amount>`", parse_mode='Markdown')
         return
         
     try:
