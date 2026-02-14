@@ -1,12 +1,12 @@
 # handlers/admin.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 from utils.decorators import admin_only, private_chat_only  # Import decorators
 from database import Session, User
 from services import economy
 
 @admin_only           # Security Check 1: Must be Bot Admin
-@private_chat_only    # Security Check 2: Must be in DM (optional, prevents clutter)
+@private_chat_only    # Security Check 2: Must be in DM 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Opens the Admin Control Panel.
@@ -39,20 +39,74 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
-        await update.message.reply_text("⚠️ Usage: `/give <user_id> <amount>`", parse_mode='Markdown')
-        return
-        
-    try:
-        target_id = int(context.args[0])
-        amount = int(context.args[1])
-        
-        economy.add_vouchers(target_id, amount)
-        await update.message.reply_text(f"✅ Added **{amount} Vouchers** to User ID `{target_id}`.", parse_mode='Markdown')
-        
-    except ValueError:
-        await update.message.reply_text("❌ IDs and Amounts must be numbers.")
+    """
+    Usage:
+    1. Reply to user: /give_voucher <amount>
+    2. Mention user:  /give_voucher @username <amount>
+    3. User ID:       /give_voucher <user_id> <amount>
+    """
+    args = context.args
+    target_id = None
+    amount = None
 
+    # Scenario 1: Reply to a message
+    if update.message.reply_to_message:
+        try:
+            target_id = update.message.reply_to_message.from_user.id
+            amount = int(args[0])
+        except (IndexError, ValueError):
+            await update.message.reply_text("⚠️ Usage (Reply): `/give_voucher <amount>`", parse_mode='Markdown')
+            return
+
+    # Scenario 2 & 3: Arguments provided
+    elif len(args) >= 2:
+        identifier = args[0]
+        try:
+            amount = int(args[1])
+        except ValueError:
+            await update.message.reply_text("❌ Amount must be a number.", parse_mode='Markdown')
+            return
+
+        # Check if it's a @username
+        if identifier.startswith("@"):
+            username = identifier[1:] # Strip the '@'
+            session = Session()
+            user = session.query(User).filter(User.username.ilike(username)).first() # Case-insensitive search
+            session.close()
+            
+            if user:
+                target_id = user.id
+            else:
+                await update.message.reply_text(f"❌ User `@{username}` not found in database.\n(They must interact with the bot first).", parse_mode='Markdown')
+                return
+        # Assume it's an ID
+        elif identifier.isdigit():
+            target_id = int(identifier)
+        else:
+            await update.message.reply_text("❌ Invalid user. Use @username or ID.")
+            return
+            
+    else:
+        await update.message.reply_text(
+            "⚠️ **Usage Options:**\n"
+            "1. Reply to msg: `/give_voucher 5`\n"
+            "2. By Username: `/give_voucher @username 5`\n"
+            "3. By ID: `/give_voucher 123456 5`",
+            parse_mode='Markdown'
+        )
+        return
+
+    # Execute the transaction
+    if target_id and amount:
+        economy.add_vouchers(target_id, amount)
+        
+        # Try to get the user's name for the success message
+        session = Session()
+        user_db = session.query(User).filter_by(id=target_id).first()
+        name = user_db.full_name if user_db else f"ID {target_id}"
+        session.close()
+
+        await update.message.reply_text(f"✅ 恭喜 {name} 获得 {amount} 张兑奖券！", parse_mode='Markdown')
 @admin_only
 async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:

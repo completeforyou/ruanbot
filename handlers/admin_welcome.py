@@ -52,7 +52,7 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "**Step 3:** Add custom URL **Buttons** (like a link to rules).\n\n"
-        "Format: `Button Name | https://link.com`\n"
+        "Format: `Button Name : https://link.com`\n"
         "Send one per line.\n\n"
         "*(Or type /skip for no extra buttons)*",
         parse_mode='Markdown'
@@ -66,8 +66,8 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text_input != '/skip':
         lines = text_input.split('\n')
         for line in lines:
-            if '|' in line:
-                parts = line.split('|', 1)
+            if ':' in line:
+                parts = line.split(':', 1)
                 _cache[user_id]['buttons'].append([parts[0].strip(), parts[1].strip()])
 
     # Save to Database

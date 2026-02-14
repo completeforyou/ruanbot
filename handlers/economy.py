@@ -40,10 +40,11 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Get clean data from DB
     balance = economy.get_user_balance(user.id)
+    vouchers = economy.get_user_vouchers(user.id)
     
     # Reply to user
     await update.message.reply_text(
-        f"💰 {user.first_name}, 当前积分: `{int(balance)}`",
+        f"💰 {user.first_name}, 当前积分: `{int(balance)}`\n🎫 兑奖券: `{int(vouchers)}`",
         parse_mode='Markdown'
     )
 
@@ -57,7 +58,7 @@ async def handle_check_in_request(update: Update, context: ContextTypes.DEFAULT_
     
     if success:
         await update.message.reply_text(
-            f"{msg}\n💰 Received: **{int(points)}** Points",
+            f"{msg}\n💰 获得: {int(points)} 积分!",
             parse_mode='Markdown'
         )
     else:
