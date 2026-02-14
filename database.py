@@ -2,7 +2,16 @@
 from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Float, Text, JSON, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
+import os
 import config
+
+# --- Secrets ---
+TOKEN = os.getenv("TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Fix for Railway PostgreSQL URL
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 Base = declarative_base()
 engine = create_engine(config.DATABASE_URL if config.DATABASE_URL else "sqlite:///local_test.db")
