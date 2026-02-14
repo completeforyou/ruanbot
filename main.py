@@ -51,7 +51,6 @@ if __name__ == '__main__':
     application.add_handler(admin_welcome.welcome_conv_handler)
     application.add_handler(CommandHandler("give", admin.give_voucher_command))
     application.add_handler(CommandHandler("set_checkin", admin.set_checkin_command))
-    application.add_handler(admin_products.conv_handler)
     application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))

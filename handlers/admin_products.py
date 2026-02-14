@@ -9,6 +9,8 @@ TYPE, NAME, COST, CHANCE, STOCK = range(5)
 product_cache = {}
 
 # Entry Points
+@admin_only
+@private_chat_only
 async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # This can be triggered by command /add_product or button
     user_id = update.effective_user.id
@@ -107,7 +109,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Registry
 conv_handler = ConversationHandler(
     entry_points=[
-        CommandHandler('add_product', start_add_product),
+        CommandHandler('add', start_add_product),
         CallbackQueryHandler(start_add_product, pattern="^admin_prod_add$")
     ],
     states={
