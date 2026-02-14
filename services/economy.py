@@ -1,5 +1,5 @@
 # services/economy.py
-from database import Session, User
+from database import Session, SystemConfig, User
 from sqlalchemy import update
 from datetime import datetime
 
@@ -82,5 +82,65 @@ def add_vouchers(user_id: int, amount: int):
             print(f"❌ Failed to add vouchers: User {user_id} not found.")
     except Exception as e:
         print(f"DB Error: {e}")
+    finally:
+        session.close()
+
+def process_check_in(user_id: int, username: str, full_name: str):
+    """
+    Handles user check-in.
+    Returns: (Success: bool, Message: str, PointsAdded: float)
+    """
+    session = Session()
+    try:
+        # 1. Get User
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            user = User(id=user_id, username=username, full_name=full_name)
+            session.add(user)
+        
+        # 2. Get Config (Or create default)
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1, check_in_points=10.0, check_in_limit=1)
+            session.add(config)
+            session.commit() # Save default config immediately
+
+        # 3. Check Date (Reset count if it's a new day)
+        now = datetime.now()
+        if user.last_check_in_date:
+            if user.last_check_in_date.date() < now.date():
+                user.daily_check_in_count = 0
+        
+        # 4. Check Limit
+        if user.daily_check_in_count >= config.check_in_limit:
+            return False, f"📅 You have already checked in {config.check_in_limit} time(s) today!", 0.0
+        
+        # 5. Award Points
+        points_to_add = config.check_in_points
+        user.points += points_to_add
+        user.daily_check_in_count += 1
+        user.last_check_in_date = now
+        
+        session.commit()
+        return True, "✅ Check-in successful!", points_to_add
+        
+    except Exception as e:
+        print(f"Check-in Error: {e}")
+        return False, "❌ System error.", 0.0
+    finally:
+        session.close()
+
+def set_check_in_config(points: float, limit: int):
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1)
+            session.add(config)
+        
+        config.check_in_points = points
+        config.check_in_limit = limit
+        session.commit()
+        return True
     finally:
         session.close()

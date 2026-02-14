@@ -52,3 +52,19 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
     except ValueError:
         await update.message.reply_text("❌ IDs and Amounts must be numbers.")
+
+@admin_only
+async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 2:
+        await update.message.reply_text("⚠️ Usage: `/set_checkin <points> <limit>`\nExample: `/set_checkin 50 1`", parse_mode='Markdown')
+        return
+        
+    try:
+        points = float(context.args[0])
+        limit = int(context.args[1])
+        
+        economy.set_check_in_config(points, limit)
+        await update.message.reply_text(f"✅ **Check-in Updated!**\n💰 Points: {points}\n📅 Daily Limit: {limit}", parse_mode='Markdown')
+        
+    except ValueError:
+        await update.message.reply_text("❌ Points must be a number and Limit must be an integer.")

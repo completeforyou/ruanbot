@@ -46,3 +46,20 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 {user.first_name}, 当前积分: `{int(balance)}`",
         parse_mode='Markdown'
     )
+
+async def handle_check_in_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Triggered by '签到' or '/checkin'
+    """
+    user = update.effective_user
+    
+    success, msg, points = economy.process_check_in(user.id, user.username, user.first_name)
+    
+    if success:
+        await update.message.reply_text(
+            f"{msg}\n💰 Received: **{int(points)}** Points",
+            parse_mode='Markdown'
+        )
+    else:
+        # Send failure message (Already checked in)
+        await update.message.reply_text(msg)
