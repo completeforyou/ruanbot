@@ -59,3 +59,28 @@ def get_user_balance(user_id: int) -> float:
         return user.points if user else 0.0
     finally:
         session.close()
+
+def get_user_vouchers(user_id: int) -> int:
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=user_id).first()
+        return user.vouchers if user else 0
+    finally:
+        session.close()
+
+def add_vouchers(user_id: int, amount: int):
+    session = Session()
+    try:
+        # Check if user exists first to be safe
+        user = session.query(User).filter_by(id=user_id).first()
+        if user:
+            stmt = update(User).where(User.id == user_id).values(vouchers=User.vouchers + amount)
+            session.execute(stmt)
+            session.commit()
+            print(f"🎟 Voucher Update: User {user_id} +{amount}")
+        else:
+            print(f"❌ Failed to add vouchers: User {user_id} not found.")
+    except Exception as e:
+        print(f"DB Error: {e}")
+    finally:
+        session.close()

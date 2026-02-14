@@ -2,94 +2,73 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import Session, Product, User
-from sqlalchemy import update
 import random
 
-async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Shows available products in the group with a Draw button.
-    """
+async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Shows only LOTTERY items (Cost = Vouchers)."""
     session = Session()
-    products = session.query(Product).filter(Product.is_active == True, Product.stock > 0).all()
+    # Filter for type='lottery'
+    products = session.query(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0).all()
+    session.close()
+    
+    # Get User Balance
+    user = update.effective_user
+    session = Session()
+    db_user = session.query(User).filter_by(id=user.id).first()
+    vouchers = db_user.vouchers if db_user else 0
     session.close()
 
+    msg = f"🎰 **Voucher Lottery** 🎰\nYour Balance: 🎟 **{vouchers} Vouchers**\n\n"
+    
     if not products:
-        await update.message.reply_text("🏪 现无抽奖.")
+        msg += "No lottery events running currently."
+        await update.message.reply_text(msg, parse_mode='Markdown')
         return
 
-    # Build the message
-    msg = "🎰 抽奖中心 🎰\n\n"
     keyboard = []
-    
     for p in products:
-        cost_int = int(p.cost)
-        msg += f"🎁 {p.name}\n"
-        msg += f"   • 价格: `{cost_int}` 积分\n"
-        msg += f"   • 库存: {p.stock}\n"
-        msg += "\n"
-        
-        # Add a button for this specific product
-        # Callback data format: "draw_{product_id}"
-        keyboard.append([InlineKeyboardButton(f"点我抽奖-{p.name} ({cost_int} 分)", callback_data=f"draw_{p.id}")])
+        cost = int(p.cost)
+        msg += f"🎁 **{p.name}**\n   • Cost: 🎟 {cost} Voucher(s)\n   • Stock: {p.stock}\n\n"
+        keyboard.append([InlineKeyboardButton(f"🎲 Draw: {p.name}", callback_data=f"lottery_draw_{p.id}")])
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-async def handle_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handles the button click.
-    """
+async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
-    
-    # "draw_1" -> product_id = 1
-    product_id = int(query.data.split("_")[1])
+    product_id = int(query.data.split("_")[2])
     
     session = Session()
     try:
-        # 1. Get Data
         db_user = session.query(User).filter_by(id=user.id).first()
         product = session.query(Product).filter_by(id=product_id).first()
         
-        # 2. Validations
-        if not product or not product.is_active or product.stock <= 0:
-            await query.answer("❌ 商品不存在或被缺货", show_alert=True)
+        if not product or product.stock <= 0:
+            await query.answer("❌ Out of stock!", show_alert=True)
             return
 
-        if not db_user or db_user.points < product.cost:
-            await query.answer(f"❌ 积分不足! 你目前有 {db_user.points if db_user else 0} 分", show_alert=True)
+        # CHECK VOUCHERS
+        cost = int(product.cost)
+        if not db_user or db_user.vouchers < cost:
+            await query.answer(f"❌ Need {cost} Vouchers! You have {db_user.vouchers}.", show_alert=True)
             return
 
-        # 3. Deduct Points (Atomic-ish within transaction)
-        db_user.points -= product.cost
-        cost_int = int(product.cost)
+        # Deduct Vouchers
+        db_user.vouchers -= cost
         
-        # 4. Roll the Dice
-        # Generate random 0.0 to 1.0. If roll < chance, they win.
-        roll = random.random()
-        is_winner = roll < product.chance
-        
-        if is_winner:
+        # Calculate Win
+        if random.random() < product.chance:
             product.stock -= 1
             session.commit()
-            
-            # Announce Win in Group
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 恭喜！！！ 🎉\n\n"
-                     f"👤 {user.mention_html()} 抽中 {product.name}!\n"
-                     f"📉 花费: {cost_int} 分\n"
-                     f"📞 请联系 @qingruanjiang_bot 兑奖.",
+                text=f"🎉 **JACKPOT!** {user.mention_html()} used {cost} Voucher and won **{product.name}**!",
                 parse_mode='HTML'
             )
-            await query.answer("🎉 恭喜您中奖！", show_alert=True)
+            await query.answer("🎉 YOU WON!", show_alert=True)
         else:
-            session.commit() # Save the point deduction
-            await query.answer(f"📉 运气不好，没抽中! 你花费了 {cost_int} 分", show_alert=True)
+            session.commit()
+            await query.answer("📉 No luck this time. Try again!", show_alert=True)
             
-    except Exception as e:
-        print(f"Draw Error: {e}")
-        session.rollback()
-        await query.answer("❌ System error.", show_alert=True)
     finally:
         session.close()

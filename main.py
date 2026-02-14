@@ -3,7 +3,7 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin,admin_products, redemption, verification, admin_welcome
+from handlers import moderation, economy, admin,admin_products, redemption, verification, admin_welcome, shop
 from services.antispam import cleanup_cache
 
 # Logging Setup
@@ -49,17 +49,21 @@ if __name__ == '__main__':
     application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
     # Admin Handerls
     application.add_handler(admin_welcome.welcome_conv_handler)
+    application.add_handler(CommandHandler("give_voucher", admin.give_voucher_command))
     application.add_handler(admin_products.conv_handler)
     application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
 
-    # Redemption Commands
-    application.add_handler(CommandHandler("lottery", redemption.list_products)) # Shows the list
-    application.add_handler(CallbackQueryHandler(redemption.handle_draw, pattern="^draw_")) # Handles the button
+   
 
     # Economy Commands
     application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))
+    application.add_handler(CommandHandler("lottery", redemption.open_lottery_menu))
+    application.add_handler(CommandHandler("shop", shop.open_shop_menu))
+
+    application.add_handler(CallbackQueryHandler(redemption.handle_lottery_draw, pattern="^lottery_draw_"))
+    application.add_handler(CallbackQueryHandler(shop.handle_shop_buy, pattern="^shop_buy")) # Catches both product and voucher buys
     
     # Global Message Handler (Must be last)
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), global_message_handler))
