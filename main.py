@@ -3,7 +3,8 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin,admin_products, redemption, admin_filter, verification
+from handlers import moderation, economy, admin,admin_products, redemption, admin_filter, verification, admin_welcome
+from services.antispam import cleanup_cache
 
 # Logging Setup
 logging.basicConfig(
@@ -38,11 +39,17 @@ if __name__ == '__main__':
 
     # Build App
     application = ApplicationBuilder().token(config.TOKEN).build()
+
+    # --- BACKGROUND JOBS (Janitor) ---
+    # Run every 60 minutes (3600 seconds)
+    application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
     
     # --- Register Handlers ---
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
     application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
     # Admin Handerls
+    application.add_handler(admin_welcome.welcome_conv_handler)
+    application.add_handler(admin_products.conv_handler)
     application.add_handler(admin_products.conv_handler) # /add_product (Wizard)
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))

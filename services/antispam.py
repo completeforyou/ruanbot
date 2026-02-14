@@ -1,5 +1,6 @@
 # services/antispam.py
 from datetime import datetime, timedelta
+from telegram.ext import ContextTypes
 
 # In-Memory Caches
 _spam_cache = {}          # {user_id: [timestamp1, timestamp2...]}
@@ -35,3 +36,30 @@ def is_shadow_muted(user_id: int) -> bool:
         else:
             del _shadow_mutes[user_id] # Expired
     return False
+
+async def cleanup_cache(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Removes old data to free up memory.
+    """
+    now = datetime.now().timestamp()
+    
+    # 1. Clean Spam Cache
+    users_to_remove = []
+    for user_id, timestamps in _spam_cache.items():
+        valid_timestamps = [t for t in timestamps if now - t <= 10.0]
+        if not valid_timestamps:
+            users_to_remove.append(user_id)
+        else:
+            _spam_cache[user_id] = valid_timestamps
+            
+    for user_id in users_to_remove:
+        del _spam_cache[user_id]
+
+    # 2. Clean Shadow Mutes
+    mutes_to_remove = []
+    for user_id, end_time in _shadow_mutes.items():
+        if now > end_time:
+            mutes_to_remove.append(user_id)
+            
+    for user_id in mutes_to_remove:
+        del _shadow_mutes[user_id]

@@ -1,5 +1,5 @@
 # database.py
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Float
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Float, Text, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import os
@@ -58,6 +58,16 @@ class Product(Base):
 class SensitiveWord(Base):
     __tablename__ = 'sensitive_words'
     word = Column(String, primary_key=True) # The word itself is the ID
+
+class WelcomeConfig(Base):
+    __tablename__ = 'welcome_config'
+    
+    id = Column(Integer, primary_key=True)
+    # Updated default text
+    text = Column(Text, default="🎉 Welcome to the group, {user}! We are glad to have you here.") 
+    media_file_id = Column(String, nullable=True)
+    media_type = Column(String, nullable=True)
+    buttons = Column(JSON, nullable=True)
 
 def init_db():
     Base.metadata.create_all(engine)
