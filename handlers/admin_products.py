@@ -117,5 +117,6 @@ conv_handler = ConversationHandler(
         CHANCE: [MessageHandler(filters.TEXT, receive_chance)],
         STOCK: [MessageHandler(filters.TEXT, receive_stock)],
     },
-    fallbacks=[CommandHandler('cancel', cancel)]
+    fallbacks=[CommandHandler('cancel', cancel)],
+    per_message=False
 )

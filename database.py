@@ -1,19 +1,11 @@
 # database.py
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Float, Text, JSON
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Float, Text, JSON, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
-import os
 import config
 
-# Get DATABASE_URL from Railway environment variables
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Fix for Railway's postgres:// vs postgresql://
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
 Base = declarative_base()
-engine = create_engine(DATABASE_URL if DATABASE_URL else "sqlite:///local_test.db")
+engine = create_engine(config.DATABASE_URL if config.DATABASE_URL else "sqlite:///local_test.db")
 Session = sessionmaker(bind=engine)
 
 class User(Base):
@@ -22,13 +14,11 @@ class User(Base):
     username = Column(String)
     full_name = Column(String)
     
-    # Economy 1: Points (Activity)
+    # Economy
     points = Column(Float, default=0.0)
-    
-    # Economy 2: Vouchers (Premium/Lottery)
     vouchers = Column(Integer, default=0) 
     
-    # Stats & Status
+    # Stats
     warnings = Column(Integer, default=0)
     msg_count_total = Column(Integer, default=0)
     msg_count_daily = Column(Integer, default=0)
@@ -40,13 +30,9 @@ class Product(Base):
     __tablename__ = 'products'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    
-    # Type: 'lottery' (Chance based, costs Vouchers) or 'shop' (Guaranteed, costs Points)
     type = Column(String, default='lottery') 
-    
-    cost = Column(Float, nullable=False)   # Points (if shop) or Vouchers (if lottery)
-    chance = Column(Float, default=1.0)    # Only used for lottery (0.0 - 1.0)
-    
+    cost = Column(Float, nullable=False)
+    chance = Column(Float, default=1.0)
     stock = Column(Integer, default=1)
     is_active = Column(Boolean, default=True)
 
@@ -61,7 +47,7 @@ class WelcomeConfig(Base):
 def init_db():
     Base.metadata.create_all(engine)
     
-    # --- Auto-Migration: Add columns if they don't exist ---
+    # --- Auto-Migration ---
     inspector = inspect(engine)
     with engine.connect() as conn:
         # 1. Check User table for 'vouchers'
