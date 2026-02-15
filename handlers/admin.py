@@ -1,41 +1,79 @@
 # handlers/admin.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes
 from utils.decorators import admin_only, private_chat_only  # Import decorators
 from database import Session, User
 from services import economy
 
-@admin_only           # Security Check 1: Must be Bot Admin
-@private_chat_only    # Security Check 2: Must be in DM 
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Opens the Admin Control Panel.
-    """
+@admin_only
+@private_chat_only
+def get_main_menu_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
-            InlineKeyboardButton("⚙️ Settings", callback_data="admin_settings"),
+            InlineKeyboardButton("🛍 Manage Products", callback_data="admin_menu_products"),
+            InlineKeyboardButton("👋 Welcome Setup", callback_data="admin_menu_welcome")
         ],
         [
-            InlineKeyboardButton("❌ Close", callback_data="admin_close"),
-        ]
+            InlineKeyboardButton("🛡 Moderation", callback_data="admin_menu_mod"),
+            InlineKeyboardButton("⚙️ Bot Settings", callback_data="admin_menu_settings")
+        ],
+        [InlineKeyboardButton("❌ Close", callback_data="admin_close")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text("👑 **Admin Panel**", reply_markup=reply_markup, parse_mode='Markdown')
+    return InlineKeyboardMarkup(keyboard)
 
-# Note: Callbacks also need protection if you want to be extra safe!
+def get_products_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("➕ Add New Product", callback_data="admin_prod_add")],
+        [InlineKeyboardButton("🔙 Back to Main", callback_data="admin_back_main")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 @admin_only
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@private_chat_only
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Entry point: /admin"""
+    await update.message.reply_text(
+        "👑 **Admin Dashboard**\nSelect a module to configure:",
+        reply_markup=get_main_menu_keyboard(),
+        parse_mode='Markdown'
+    )
+
+async def admin_navigator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles button clicks to switch menus (Navigation)"""
     query = update.callback_query
     await query.answer()
     
-    if query.data == "admin_stats":
-        await query.edit_message_text("📊 Stats feature coming soon!")
-    elif query.data == "admin_settings":
-        await query.edit_message_text("⚙️ Settings feature coming soon!")
-    elif query.data == "admin_close":
+    data = query.data
+    
+    if data == "admin_back_main":
+        await query.edit_message_text(
+            "👑 **Admin Dashboard**\nSelect a module to configure:",
+            reply_markup=get_main_menu_keyboard(),
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_menu_products":
+        await query.edit_message_text(
+            "🛍 **Product Management**\nAdd or remove items for the lottery.",
+            reply_markup=get_products_keyboard(),
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_menu_welcome":
+        # We instruct them to use the command or trigger the wizard directly
+        # For simplicity, let's just show info, or you can trigger the wizard (advanced)
+        await query.edit_message_text(
+            "👋 **Welcome Config**\n\nTo change the welcome message, click below to start the wizard.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("✨ Start Setup Wizard", callback_data="admin_welcome_start"),
+                InlineKeyboardButton("🔙 Back", callback_data="admin_back_main")
+            ]]),
+            parse_mode='Markdown'
+        )
+        
+    elif data == "admin_close":
         await query.delete_message()
+
 
 @admin_only
 async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,7 +93,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
             target_id = update.message.reply_to_message.from_user.id
             amount = int(args[0])
         except (IndexError, ValueError):
-            await update.message.reply_text("⚠️ Usage (Reply): `/give_voucher <amount>`", parse_mode='Markdown')
+            await update.message.reply_text("⚠️ Usage (Reply): `/give <amount>`", parse_mode='Markdown')
             return
 
     # Scenario 2 & 3: Arguments provided
@@ -108,6 +146,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
         await update.message.reply_text(f"✅ 恭喜 {name} 获得 {amount} 张兑奖券！", parse_mode='Markdown')
 @admin_only
+@private_chat_only
 async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("⚠️ Usage: `/set_checkin <points> <limit>`\nExample: `/set_checkin 50 1`", parse_mode='Markdown')
