@@ -85,6 +85,27 @@ def add_vouchers(user_id: int, amount: int):
     finally:
         session.close()
 
+def get_voucher_cost() -> int:
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        return config.voucher_cost if config else 500
+    finally:
+        session.close()
+
+def set_voucher_cost(cost: int):
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1)
+            session.add(config)
+        config.voucher_cost = cost
+        session.commit()
+        return True
+    finally:
+        session.close()
+
 def process_check_in(user_id: int, username: str, full_name: str):
     """
     Handles user check-in.

@@ -4,9 +4,6 @@ from telegram.ext import ContextTypes
 from database import Session, Product, User
 from services import economy
 
-# Config: How many points = 1 Voucher?
-VOUCHER_PRICE_POINTS = 500
-
 async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows Point Shop items + Option to buy Vouchers."""
     session = Session()
@@ -37,7 +34,8 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 2. Buy Vouchers Button (Check if enabled)
         msg += "\n**Exchange:**"
         if economy.is_voucher_buy_enabled():
-            keyboard.append([InlineKeyboardButton(f"🎟 Buy 1 Voucher ({VOUCHER_PRICE_POINTS} pts)", callback_data="shop_buy_voucher")])
+            v_price = economy.get_voucher_cost()
+            keyboard.append([InlineKeyboardButton(f"🎟 Buy 1 Voucher ({v_price} pts)", callback_data="shop_buy_voucher")])
         else:
             msg += "\n🚫 *Voucher purchasing is currently disabled by Admin.*"
         
@@ -72,15 +70,16 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await open_shop_menu(update, context) # Refresh to update UI
                 return
 
-            if db_user.points >= VOUCHER_PRICE_POINTS:
-                db_user.points -= VOUCHER_PRICE_POINTS
+            v_price = economy.get_voucher_cost()
+            if db_user.points >= v_price:
+                db_user.points -= v_price
                 db_user.vouchers += 1
                 session.commit()
                 await query.answer("✅ Voucher purchased!", show_alert=True)
                 # Refresh the menu to show new balance
                 await open_shop_menu(update, context) 
             else:
-                await query.answer(f"❌ Need {VOUCHER_PRICE_POINTS} points!", show_alert=True)
+                await query.answer(f"❌ Need {v_price} points!", show_alert=True)
             return
 
         # B. Buying a Product

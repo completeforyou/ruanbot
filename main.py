@@ -17,17 +17,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 async def global_message_handler(update, context):
-    """
-    The Pipeline:
-    1. Check Spam -> If spam, stop.
-    2. Track Activity -> If safe, award points.
-    """
-    # Step 1: Moderation
     is_spam = await moderation.check_spam(update, context)
     if is_spam:
         return 
-        
-    # Step 2: Economy
     await economy.track_activity(update, context)
 
 if __name__ == '__main__':
@@ -38,11 +30,8 @@ if __name__ == '__main__':
         print("Error: TOKEN not found in config.py")
         exit(1)
     req = HTTPXRequest(connection_pool_size=8, read_timeout=60, connect_timeout=60)
-    # Build App
     application = ApplicationBuilder().token(config.TOKEN).request(req).build()
 
-    # --- BACKGROUND JOBS ---
-    # Run every 60 minutes
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
     
     # --- Register Handlers ---
@@ -51,19 +40,16 @@ if __name__ == '__main__':
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
     application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
     
-    # 2. Admin Wizards (Must be before generic admin callback)
-    # Triggers: /set_welcome OR Button "admin_welcome_set"
+    # 2. Admin Wizards
     application.add_handler(admin_welcome.welcome_conv_handler)
-    # Triggers: /add OR Button "admin_prod_add"
-    application.add_handler(admin_products.conv_handler) 
+    application.add_handler(admin_products.conv_handler)
+    application.add_handler(admin.settings_conv_handler) # NEW: Settings Wizard
     
     # 3. Admin Panel & Commands
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CommandHandler("give", admin.give_voucher_command))
-    application.add_handler(CommandHandler("set_checkin", admin.set_checkin_command))
-    # Note: toggle_voucher is REMOVED because it's in the panel now.
     
-    # Generic Admin Callback (Handles navigation buttons)
+    # Generic Admin Callback
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
 
     # 4. Economy & Games
@@ -75,9 +61,8 @@ if __name__ == '__main__':
     application.add_handler(CallbackQueryHandler(redemption.handle_lottery_draw, pattern="^lottery_draw_"))
     application.add_handler(CallbackQueryHandler(shop.handle_shop_buy, pattern="^shop_buy")) 
     
-    # 5. Global Message Handler (Must be last)
+    # 5. Global Message Handler
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), global_message_handler))
-    # Also handle Captions (Photos with text) for filtering
     application.add_handler(MessageHandler(filters.CAPTION, global_message_handler))
     
     print("Bot is running...")

@@ -1,9 +1,9 @@
 # handlers/admin.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from utils.decorators import admin_only, private_chat_only
 from services import economy
-from database import Session, SystemConfig, User, Product
+from database import Session, SystemConfig, Product
 
 # --- MAIN PANEL ---
 @admin_only
@@ -16,14 +16,14 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👑 **Admin Control Panel**\n"
         "Select a module to manage:"
     )
+    # REMOVED USER MGMT
     keyboard = [
         [
             InlineKeyboardButton("🏪 Shop & Lottery", callback_data="admin_shop_menu"),
             InlineKeyboardButton("🎟 Vouchers", callback_data="admin_voucher_menu")
         ],
         [
-            InlineKeyboardButton("⚙️ System Config", callback_data="admin_config_menu"),
-            InlineKeyboardButton("👥 User Mgmt", callback_data="admin_users_menu")
+            InlineKeyboardButton("⚙️ System Config", callback_data="admin_config_menu")
         ],
         [
             InlineKeyboardButton("❌ Close", callback_data="admin_close")
@@ -41,32 +41,22 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
     
-    # 1. Navigation
     if data == "admin_home":
         await admin_panel(update, context)
-        return
     elif data == "admin_close":
         await query.message.delete()
-        return
-
-    # 2. Sub-Menus
-    if data == "admin_shop_menu":
+    elif data == "admin_shop_menu":
         await show_shop_menu(update)
     elif data == "admin_voucher_menu":
         await show_voucher_menu(update)
     elif data == "admin_config_menu":
         await show_config_menu(update)
-    elif data == "admin_users_menu":
-        await show_users_menu(update)
-        
-    # 3. Actions
     elif data == "admin_toggle_voucher":
-        # Toggle and refresh
         current = economy.is_voucher_buy_enabled()
         economy.set_voucher_buy_status(not current)
-        await show_voucher_menu(update) # Refresh UI
+        await show_voucher_menu(update)
 
-# --- SUB-MENU FUNCTIONS ---
+# --- SUB-MENUS ---
 
 async def show_shop_menu(update: Update):
     session = Session()
@@ -85,17 +75,19 @@ async def show_shop_menu(update: Update):
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_voucher_menu(update: Update):
-    # Check Status
     is_enabled = economy.is_voucher_buy_enabled()
+    current_cost = economy.get_voucher_cost()
     status_icon = "✅ ON" if is_enabled else "🔴 OFF"
     toggle_btn_text = "Disable Buying" if is_enabled else "Enable Buying"
     
     text = (
         f"🎟 **Voucher Settings**\n"
-        f"🛒 Purchase Status: **{status_icon}**\n\n"
+        f"🛒 Purchase Status: **{status_icon}**\n"
+        f"💰 Cost: `{current_cost} Points`\n\n"
         "Controls:"
     )
     keyboard = [
+        [InlineKeyboardButton("💲 Set Cost", callback_data="admin_set_vcost")],
         [InlineKeyboardButton(toggle_btn_text, callback_data="admin_toggle_voucher")],
         [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
     ]
@@ -113,67 +105,141 @@ async def show_config_menu(update: Update):
         f"📅 **Check-in Rewards**\n"
         f"• Points: `{pts}`\n"
         f"• Daily Limit: `{limit}`\n\n"
-        f"📝 **Welcome Message**\n"
-        f"• Click below to set media/text.\n"
     )
     keyboard = [
-        # Note: We can add a button to trigger a conversation for check-in later
+        [InlineKeyboardButton("✏️ Edit Points", callback_data="admin_set_cpts"),
+         InlineKeyboardButton("✏️ Edit Limit", callback_data="admin_set_clim")],
         [InlineKeyboardButton("📝 Edit Welcome Msg", callback_data="admin_welcome_set")],
         [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
     ]
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-async def show_users_menu(update: Update):
-    text = (
-        "👥 **User Management**\n\n"
-        "To give vouchers, use commands (easier for specific IDs):\n"
-        "`/give @username 5`\n"
-        "`/give 123456789 5`"
-    )
-    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_home")]]
-    await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-# --- EXISTING COMMANDS (Keep these for manual use) ---
+# --- SETTINGS WIZARD (ConversationHandler) ---
+WAIT_INPUT = 1
+
+async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    setting_map = {
+        "admin_set_vcost": ("Voucher Cost", "integer"),
+        "admin_set_cpts": ("Check-in Points", "float"),
+        "admin_set_clim": ("Check-in Daily Limit", "integer"),
+    }
+    
+    s_type = query.data
+    name, dtype = setting_map.get(s_type, ("Unknown", "string"))
+    
+    context.user_data['setting_type'] = s_type
+    context.user_data['setting_dtype'] = dtype
+    
+    kb = [[InlineKeyboardButton("❌ Cancel", callback_data="admin_cancel_op")]]
+    
+    await query.edit_message_text(
+        f"✏️ **Setting: {name}**\n\n"
+        f"Please enter the new value:",
+        reply_markup=InlineKeyboardMarkup(kb),
+        parse_mode='Markdown'
+    )
+    return WAIT_INPUT
+
+async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    s_type = context.user_data.get('setting_type')
+    dtype = context.user_data.get('setting_dtype')
+    
+    try:
+        if dtype == 'integer':
+            val = int(text)
+        else:
+            val = float(text)
+            
+        # Save to DB
+        if s_type == "admin_set_vcost":
+            economy.set_voucher_cost(val)
+        elif s_type in ["admin_set_cpts", "admin_set_clim"]:
+            # Need to fetch current other value to not overwrite it with default
+            session = Session()
+            config = session.query(SystemConfig).filter_by(id=1).first()
+            c_pts = config.check_in_points if config else 10.0
+            c_lim = config.check_in_limit if config else 1
+            session.close()
+            
+            if s_type == "admin_set_cpts":
+                economy.set_check_in_config(val, c_lim)
+            else:
+                economy.set_check_in_config(c_pts, val)
+                
+        await update.message.reply_text("✅ **Setting Updated!**", parse_mode='Markdown')
+        
+        # Return to menu prompt (Admin can click /admin or buttons)
+        await update.message.reply_text("Type /admin to return to panel.")
+        return ConversationHandler.END
+        
+    except ValueError:
+        await update.message.reply_text("❌ Invalid format. Please enter a number.")
+        return WAIT_INPUT
+
+async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer("Cancelled")
+    await update.callback_query.edit_message_text("🚫 Operation Cancelled.")
+    return ConversationHandler.END
+
 @admin_only
 async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (Keep previous logic for /give command) ...
-    pass 
-    # NOTE: You can paste the original give_voucher_command logic here if you want to keep the command active.
-    # For brevity, I assume you kept the logic from the previous file or I can repost it if needed.
-    
-    # RE-PASTING logic for safety:
+    """
+    /give <amount> (Reply to user)
+    OR
+    /give <user_id> <amount>
+    """
     args = context.args
     target_id = None
     amount = None
 
+    # Case 1: Reply to a message
     if update.message.reply_to_message:
         target_id = update.message.reply_to_message.from_user.id
-        try: amount = int(args[0])
-        except: pass
+        try: 
+            amount = int(args[0])
+        except: 
+            pass
+            
+    # Case 2: ID and Amount arguments
     elif len(args) >= 2:
         try:
-            if args[0].isdigit(): target_id = int(args[0])
+            if args[0].isdigit(): 
+                target_id = int(args[0])
             else: 
-                # resolving username is hard without cache, usually better to reply
+                # Resolving username requires database lookup or cache, 
+                # but ID is safer/easier for this scope.
                 await update.message.reply_text("⚠️ Please reply to a message or use User ID.")
                 return
             amount = int(args[1])
-        except: pass
+        except: 
+            pass
     
     if target_id and amount:
         economy.add_vouchers(target_id, amount)
-        await update.message.reply_text(f"✅ Gave {amount} vouchers to ID {target_id}")
+        await update.message.reply_text(f"✅ Gave **{amount}** vouchers to ID `{target_id}`", parse_mode='Markdown')
     else:
-        await update.message.reply_text("Usage: `/give <amount>` (Reply to user)", parse_mode='Markdown')
+        await update.message.reply_text(
+            "usage:\n"
+            "1. Reply to user: `/give <amount>`\n"
+            "2. By ID: `/give <user_id> <amount>`", 
+            parse_mode='Markdown'
+        )
 
-@admin_only
-async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (Keep previous logic) ...
-    if len(context.args) < 2:
-        await update.message.reply_text("Usage: `/set_checkin 50 1`")
-        return
-    try:
-        economy.set_check_in_config(float(context.args[0]), int(context.args[1]))
-        await update.message.reply_text("✅ Check-in Updated!")
-    except:
-        await update.message.reply_text("❌ Error.")
+# Export the handler
+settings_conv_handler = ConversationHandler(
+    entry_points=[
+        CallbackQueryHandler(start_setting, pattern="^admin_set_(vcost|cpts|clim)$")
+    ],
+    states={
+        WAIT_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_setting)]
+    },
+    fallbacks=[
+        CallbackQueryHandler(cancel_op, pattern="^admin_cancel_op$"),
+        MessageHandler(filters.COMMAND, cancel_op)
+    ]
+)

@@ -8,6 +8,9 @@ from utils.decorators import admin_only, private_chat_only
 MEDIA, TEXT, BUTTONS = range(3)
 _cache = {}
 
+def get_cancel_kb():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_welcome_cancel")]])
+
 @admin_only
 @private_chat_only
 async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

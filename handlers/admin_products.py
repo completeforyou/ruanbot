@@ -8,6 +8,8 @@ from utils.decorators import admin_only, private_chat_only
 TYPE, NAME, COST, CHANCE, STOCK = range(5)
 product_cache = {}
 
+def get_cancel_kb():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_cancel_prod")]])
 # Entry Points
 @admin_only
 @private_chat_only
