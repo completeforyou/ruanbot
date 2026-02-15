@@ -3,7 +3,7 @@ import logging
 import config
 from database import init_db
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from handlers import moderation, economy, admin, admin_products, redemption, verification, admin_welcome, shop, games
+from handlers import moderation, economy, admin, admin_products, redemption, verification, admin_welcome, shop
 from services.antispam import cleanup_cache
 from telegram.request import HTTPXRequest
 
@@ -73,7 +73,6 @@ if __name__ == '__main__':
     application.add_handler(MessageHandler(filters.Regex(r'(?i)^(签到|checkin)$'), economy.handle_check_in_request))
     application.add_handler(CommandHandler("lottery", redemption.open_lottery_menu))
     application.add_handler(CommandHandler("shop", shop.open_shop_menu))
-    application.add_handler(CommandHandler("bet", games.dice_gamble)) # New Dice Game
 
     application.add_handler(CallbackQueryHandler(redemption.handle_lottery_draw, pattern="^lottery_draw_"))
     application.add_handler(CallbackQueryHandler(shop.handle_shop_buy, pattern="^shop_buy")) 
