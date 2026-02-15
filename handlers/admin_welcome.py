@@ -1,6 +1,6 @@
 # handlers/admin_welcome.py
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from database import Session, WelcomeConfig
 from utils.decorators import admin_only, private_chat_only
 
@@ -11,14 +11,25 @@ _cache = {}
 @admin_only
 @private_chat_only
 async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Handle CallbackQuery (if clicked from Admin Panel)
+    if update.callback_query:
+        await update.callback_query.answer()
+        # We can't reply to a callback with a new message easily in a conversation start
+        # unless we edit or send new. sending new is safer for wizards.
+        await update.callback_query.message.reply_text(
+            "📝 **Welcome Message Setup**\n\n"
+            "**Step 1:** Send a **Photo, Video, or GIF**...\n"
+            "*(Or type /skip)*",
+            parse_mode='Markdown'
+        )
+    else:
+        # Handle Command
+        await update.message.reply_text(
+             "📝 **Welcome Message Setup**\n\n..."
+             # ... existing text ...
+        )
+
     _cache[update.effective_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
-    
-    await update.message.reply_text(
-        "📝 **Welcome Message Setup**\n\n"
-        "**Step 1:** Send a **Photo, Video, or GIF** to attach to the welcome message.\n\n"
-        "*(Or type /skip if you only want text)*",
-        parse_mode='Markdown'
-    )
     return MEDIA
 
 async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,7 +107,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 welcome_conv_handler = ConversationHandler(
-    entry_points=[CommandHandler('set_welcome', set_welcome_start)],
+    entry_points=[CommandHandler('set_welcome', set_welcome_start),
+                  CallbackQueryHandler(set_welcome_start, pattern="^admin_welcome_set$")],
     states={
         MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.TEXT & ~filters.COMMAND, receive_media), CommandHandler('skip', receive_media)],
         TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
