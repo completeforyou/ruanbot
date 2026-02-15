@@ -55,6 +55,7 @@ class SystemConfig(Base):
     id = Column(Integer, primary_key=True)
     check_in_points = Column(Float, default=10.0)
     check_in_limit = Column(Integer, default=1) # How many times per day?
+    voucher_buy_enabled = Column(Boolean, default=True)
 
 def init_db():
     Base.metadata.create_all(engine)

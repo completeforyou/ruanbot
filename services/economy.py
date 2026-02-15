@@ -144,3 +144,31 @@ def set_check_in_config(points: float, limit: int):
         return True
     finally:
         session.close()
+
+def set_voucher_buy_status(enabled: bool):
+    """Admin: Toggles the ability to buy vouchers."""
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1)
+            session.add(config)
+        
+        config.voucher_buy_enabled = enabled
+        session.commit()
+        return True
+    except Exception as e:
+        print(f"Error setting voucher status: {e}")
+        return False
+    finally:
+        session.close()
+
+def is_voucher_buy_enabled() -> bool:
+    """Checks if voucher buying is allowed."""
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        # Default to True if config doesn't exist yet
+        return config.voucher_buy_enabled if config else True
+    finally:
+        session.close()

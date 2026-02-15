@@ -108,6 +108,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
         await update.message.reply_text(f"✅ 恭喜 {name} 获得 {amount} 张兑奖券！", parse_mode='Markdown')
 @admin_only
+@private_chat_only
 async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("⚠️ Usage: `/set_checkin <points> <limit>`\nExample: `/set_checkin 50 1`", parse_mode='Markdown')
@@ -122,3 +123,31 @@ async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     except ValueError:
         await update.message.reply_text("❌ Points must be a number and Limit must be an integer.")
+
+@admin_only
+@private_chat_only
+async def toggle_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Usage: /toggle_voucher on  OR  /toggle_voucher off
+    """
+    if not context.args:
+        # Show current status
+        status = economy.is_voucher_buy_enabled()
+        state = "✅ ON" if status else "❌ OFF"
+        await update.message.reply_text(
+            f"🎟 **Voucher Purchase Status:** {state}\n"
+            f"Usage: `/toggle_voucher on` or `/toggle_voucher off`",
+            parse_mode='Markdown'
+        )
+        return
+
+    arg = context.args[0].lower()
+    
+    if arg in ['on', 'enable', 'true']:
+        economy.set_voucher_buy_status(True)
+        await update.message.reply_text("✅ **Voucher purchasing has been ENABLED.**")
+    elif arg in ['off', 'disable', 'false']:
+        economy.set_voucher_buy_status(False)
+        await update.message.reply_text("🚫 **Voucher purchasing has been DISABLED.**")
+    else:
+        await update.message.reply_text("⚠️ Invalid option. Use `on` or `off`.")

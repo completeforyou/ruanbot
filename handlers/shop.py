@@ -35,8 +35,11 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "(No items currently in stock)\n"
         
     msg += "\n**Exchange:**"
-    # 2. Buy Vouchers Button
-    keyboard.append([InlineKeyboardButton(f"🎟 Buy 1 Voucher ({VOUCHER_PRICE_POINTS} pts)", callback_data="shop_buy_voucher")])
+    # --- CHECK STATUS HERE ---
+    if economy.is_voucher_buy_enabled():
+        keyboard.append([InlineKeyboardButton(f"🎟 Buy 1 Voucher ({VOUCHER_PRICE_POINTS} pts)", callback_data="shop_buy_voucher")])
+    else:
+        msg += "\n🚫 *Voucher purchasing is currently disabled by Admin.*"
     
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -52,6 +55,13 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # A. Buying a Voucher
         if data == "shop_buy_voucher":
+            # --- SECURITY CHECK ---
+            if not economy.is_voucher_buy_enabled():
+                await query.answer("❌ Voucher purchasing is currently disabled!", show_alert=True)
+                # Optional: Refresh the menu to show it's gone
+                await open_shop_menu(update, context)
+                return
+            # ----------------------
             if db_user.points >= VOUCHER_PRICE_POINTS:
                 db_user.points -= VOUCHER_PRICE_POINTS
                 db_user.vouchers += 1
