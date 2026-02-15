@@ -106,32 +106,18 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚫 Cancelled.")
     return ConversationHandler.END
 
-async def add_product_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    # Create the cache entry
-    product_cache[query.from_user.id] = {}
-    
-    await query.edit_message_text(
-        "🎁 **Add New Product**\n\n"
-        "Please enter the **Product Name**:\n"
-        "(Type /cancel to stop)",
-        parse_mode='Markdown'
-    )
-    return NAME
-
 # Registry
 conv_handler = ConversationHandler(
     entry_points=[
         CommandHandler('add', start_add_product),
-        CallbackQueryHandler(add_product_button_callback, pattern="^admin_prod_add$")
+        CallbackQueryHandler(start_add_product, pattern="^admin_prod_add$")
     ],
     states={
         TYPE: [CallbackQueryHandler(receive_type, pattern="^type_")],
-        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
-        COST: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_cost)],
-        CHANCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_chance)],
-        STOCK: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_stock)],
+        NAME: [MessageHandler(filters.TEXT, receive_name)],
+        COST: [MessageHandler(filters.TEXT, receive_cost)],
+        CHANCE: [MessageHandler(filters.TEXT, receive_chance)],
+        STOCK: [MessageHandler(filters.TEXT, receive_stock)],
     },
     fallbacks=[CommandHandler('cancel', cancel)],
     per_message=False

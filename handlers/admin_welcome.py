@@ -1,6 +1,6 @@
 # handlers/admin_welcome.py
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
 from database import Session, WelcomeConfig
 from utils.decorators import admin_only, private_chat_only
 
@@ -17,21 +17,6 @@ async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📝 **Welcome Message Setup**\n\n"
         "**Step 1:** Send a **Photo, Video, or GIF** to attach to the welcome message.\n\n"
         "*(Or type /skip if you only want text)*",
-        parse_mode='Markdown'
-    )
-    return MEDIA
-
-@admin_only
-@private_chat_only
-async def start_welcome_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    _cache[query.from_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
-    
-    await query.edit_message_text(
-        "📝 **Welcome Message Setup**\n\n"
-        "**Step 1:** Send a **Photo, Video, or GIF**.\n"
-        "*(Type /skip for text only)*",
         parse_mode='Markdown'
     )
     return MEDIA
@@ -111,15 +96,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 welcome_conv_handler = ConversationHandler(
-    entry_points=[
-        CommandHandler('set_welcome', set_welcome_start),
-        CallbackQueryHandler(start_welcome_button, pattern="^admin_welcome_setup$")
-    ],
+    entry_points=[CommandHandler('set_welcome', set_welcome_start)],
     states={
         MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.TEXT & ~filters.COMMAND, receive_media), CommandHandler('skip', receive_media)],
         TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
         BUTTONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_buttons), CommandHandler('skip', receive_buttons)],
     },
-    fallbacks=[CommandHandler('cancel', cancel)],
-    per_message=False
+    fallbacks=[CommandHandler('cancel', cancel)]
 )
