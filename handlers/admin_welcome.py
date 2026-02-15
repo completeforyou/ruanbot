@@ -1,6 +1,6 @@
 # handlers/admin_welcome.py
-from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from database import Session, WelcomeConfig
 from utils.decorators import admin_only, private_chat_only
 
@@ -11,32 +11,29 @@ _cache = {}
 @admin_only
 @private_chat_only
 async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Handle CallbackQuery (if clicked from Admin Panel)
+    _cache[update.effective_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
+    
+    text_msg = (
+        "📝 **Welcome Message Setup**\n\n"
+        "**Step 1:** Send a **Photo, Video, or GIF** to attach to the welcome message.\n\n"
+        "*(Or type /skip if you only want text)*"
+    )
+
+    # Handle if clicked from Admin Panel (Callback) vs Command
     if update.callback_query:
         await update.callback_query.answer()
-        # We can't reply to a callback with a new message easily in a conversation start
-        # unless we edit or send new. sending new is safer for wizards.
-        await update.callback_query.message.reply_text(
-            "📝 **Welcome Message Setup**\n\n"
-            "**Step 1:** Send a **Photo, Video, or GIF**...\n"
-            "*(Or type /skip)*",
-            parse_mode='Markdown'
-        )
+        # Send a NEW message because we can't upload media to an existing text-only message easily later
+        await update.callback_query.message.reply_text(text_msg, parse_mode='Markdown')
     else:
-        # Handle Command
-        await update.message.reply_text(
-             "📝 **Welcome Message Setup**\n\n..."
-             # ... existing text ...
-        )
-
-    _cache[update.effective_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
+        await update.message.reply_text(text_msg, parse_mode='Markdown')
+        
     return MEDIA
 
 async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if update.message.text == '/skip':
-        pass # Leave media as None
+        pass 
     elif update.message.photo:
         _cache[user_id]['media_id'] = update.message.photo[-1].file_id
         _cache[user_id]['media_type'] = 'photo'
@@ -52,8 +49,8 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "**Step 2:** Send the **Text** for the welcome message.\n\n"
-        "💡 **Tip:** Use `{user}` in your text where you want to tag the person.\n\n"
-        "*(Note: The math captcha will be automatically added to the bottom of your text)*",
+        "💡 **Tip:** Use `{user}` in your text where you want to tag the person.\n"
+        "*(The math captcha is added automatically)*",
         parse_mode='Markdown'
     )
     return TEXT
@@ -62,10 +59,10 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _cache[update.effective_user.id]['text'] = update.message.text
     
     await update.message.reply_text(
-        "**Step 3:** Add custom URL **Buttons** (like a link to rules).\n\n"
+        "**Step 3:** Add custom URL **Buttons**.\n"
         "Format: `Button Name : https://link.com`\n"
         "Send one per line.\n\n"
-        "*(Or type /skip for no extra buttons)*",
+        "*(Or type /skip)*",
         parse_mode='Markdown'
     )
     return BUTTONS
@@ -85,7 +82,6 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _cache[user_id]
     session = Session()
     
-    # We only need one global config, so we always update ID 1
     config = session.query(WelcomeConfig).filter_by(id=1).first()
     if not config:
         config = WelcomeConfig(id=1)
@@ -99,7 +95,7 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session.commit()
     session.close()
     
-    await update.message.reply_text("✅ **Welcome Message Updated!**\nNew users will now see this format.")
+    await update.message.reply_text("✅ **Welcome Message Updated!**")
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -107,12 +103,15 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 welcome_conv_handler = ConversationHandler(
-    entry_points=[CommandHandler('set_welcome', set_welcome_start),
-                  CallbackQueryHandler(set_welcome_start, pattern="^admin_welcome_set$")],
+    entry_points=[
+        CommandHandler('set_welcome', set_welcome_start),
+        CallbackQueryHandler(set_welcome_start, pattern="^admin_welcome_set$")
+    ],
     states={
         MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.TEXT & ~filters.COMMAND, receive_media), CommandHandler('skip', receive_media)],
         TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
         BUTTONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_buttons), CommandHandler('skip', receive_buttons)],
     },
     fallbacks=[CommandHandler('cancel', cancel)]
+    # Removed per_message=False to fix warning
 )

@@ -120,5 +120,4 @@ conv_handler = ConversationHandler(
         STOCK: [MessageHandler(filters.TEXT, receive_stock)],
     },
     fallbacks=[CommandHandler('cancel', cancel)],
-    per_message=False
 )
