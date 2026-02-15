@@ -44,8 +44,6 @@ if __name__ == '__main__':
     # --- BACKGROUND JOBS ---
     # Run every 60 minutes
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
-    # Run verification cleanup every 60 seconds (Fixes the zombie user issue)
-    application.job_queue.run_repeating(verification.cleanup_pending_users, interval=60, first=10)
     
     # --- Register Handlers ---
     
