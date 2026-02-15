@@ -2,7 +2,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from utils.decorators import admin_only, private_chat_only  # Import decorators
-from database import Session, User
+from database import Session, User, SystemConfig
 from services import economy
 
 @admin_only
@@ -161,3 +161,24 @@ async def set_checkin_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     except ValueError:
         await update.message.reply_text("❌ Points must be a number and Limit must be an integer.")
+
+@admin_only
+@private_chat_only
+async def toggle_voucher_buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    session = Session()
+    try:
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1)
+            session.add(config)
+        
+        # Toggle the boolean
+        new_state = not config.buy_voucher_enabled
+        config.buy_voucher_enabled = new_state
+        session.commit()
+        
+        status = "✅ ENABLED" if new_state else "❌ DISABLED"
+        await update.message.reply_text(f"🎟 **Voucher Purchasing is now:** {status}", parse_mode='Markdown')
+        
+    finally:
+        session.close()

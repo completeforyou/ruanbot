@@ -75,9 +75,9 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(admin.admin_navigator, pattern="^admin_"))
     
     # Admin Tools
-    app.add_handler(CommandHandler("give_voucher", admin.give_voucher_command))
+    app.add_handler(CommandHandler("give", admin.give_voucher_command))
     app.add_handler(CommandHandler("set_checkin", admin.set_checkin_command))
-    app.add_handler(CommandHandler("toggle_voucher_buy", admin.toggle_voucher_buy_command))
+    app.add_handler(CommandHandler("toggle_voucher", admin.toggle_voucher_buy_command))
     
     # C. Verification (New Members)
     app.add_handler(verification.welcome_new_member_handler)

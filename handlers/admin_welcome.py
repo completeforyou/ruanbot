@@ -120,5 +120,6 @@ welcome_conv_handler = ConversationHandler(
         TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
         BUTTONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_buttons), CommandHandler('skip', receive_buttons)],
     },
-    fallbacks=[CommandHandler('cancel', cancel)]
+    fallbacks=[CommandHandler('cancel', cancel)],
+    per_message=False
 )
