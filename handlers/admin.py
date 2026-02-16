@@ -14,20 +14,19 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Entry point: /admin
     """
     text = (
-        "👑 **Admin Control Panel**\n"
-        "Select a module to manage:"
+        "👑 控制面板\n"
+        "选择模块:"
     )
-    # REMOVED USER MGMT
     keyboard = [
         [
-            InlineKeyboardButton("🏪 Shop & Lottery", callback_data="admin_shop_menu"),
-            InlineKeyboardButton("🎟 Vouchers", callback_data="admin_voucher_menu")
+            InlineKeyboardButton("🏪 商城 & 刮刮乐", callback_data="admin_shop_menu"),
+            InlineKeyboardButton("🎟 兑奖券", callback_data="admin_voucher_menu")
         ],
         [
-            InlineKeyboardButton("⚙️ System Config", callback_data="admin_config_menu")
+            InlineKeyboardButton("⚙️ 系统设置", callback_data="admin_config_menu")
         ],
         [
-            InlineKeyboardButton("❌ Close", callback_data="admin_close")
+            InlineKeyboardButton("❌ 关闭", callback_data="admin_close")
         ]
     ]
     
@@ -67,13 +66,14 @@ async def show_shop_menu(update: Update):
     session.close()
 
     text = (
-        f"🏪 **Shop Management**\n"
-        f"📦 Total Products: `{prod_count}`\n\n"
-        "Select an action:"
+        f"🏪 商城管理\n"
+        f"📦 总共商品: `{prod_count}`\n\n"
+        "操作:"
     )
     keyboard = [
-        [InlineKeyboardButton("➕ Add New Product", callback_data="admin_prod_add")],
-        [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
+        [InlineKeyboardButton("➕ 新增", callback_data="admin_prod_add")],
+        [InlineKeyboardButton("➖ 删除商品", callback_data="admin_prod_remove")],
+        [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
     ]
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -84,15 +84,14 @@ async def show_voucher_menu(update: Update):
     toggle_btn_text = "Disable Buying" if is_enabled else "Enable Buying"
     
     text = (
-        f"🎟 **Voucher Settings**\n"
-        f"🛒 Purchase Status: **{status_icon}**\n"
-        f"💰 Cost: `{current_cost} Points`\n\n"
-        "Controls:"
+        f"🎟 兑奖券设置\n"
+        f"🛒 可否购买模式{status_icon}\n"
+        f"💰 : 所需`{current_cost} 积分`\n\n"
     )
     keyboard = [
-        [InlineKeyboardButton("💲 Set Cost", callback_data="admin_set_vcost")],
+        [InlineKeyboardButton("💲 设置所需积分", callback_data="admin_set_vcost")],
         [InlineKeyboardButton(toggle_btn_text, callback_data="admin_toggle_voucher")],
-        [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
+        [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
     ]
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -104,16 +103,16 @@ async def show_config_menu(update: Update):
     session.close()
 
     text = (
-        f"⚙️ **System Configuration**\n\n"
-        f"📅 **Check-in Rewards**\n"
-        f"• Points: `{pts}`\n"
-        f"• Daily Limit: `{limit}`\n\n"
+        f"⚙️ 系统配置\n\n"
+        f"📅 签到奖励\n"
+        f"• 积分: `{pts}`\n"
+        f"• 每日限制: `{limit}`\n\n"
     )
     keyboard = [
-        [InlineKeyboardButton("✏️ Edit Points", callback_data="admin_set_cpts"),
-         InlineKeyboardButton("✏️ Edit Limit", callback_data="admin_set_clim")],
-        [InlineKeyboardButton("📝 Edit Welcome Msg", callback_data="admin_welcome_set")],
-        [InlineKeyboardButton("🔙 Back", callback_data="admin_home")]
+        [InlineKeyboardButton("✏️ 编辑积分", callback_data="admin_set_cpts"),
+         InlineKeyboardButton("✏️ 编辑限制", callback_data="admin_set_clim")],
+        [InlineKeyboardButton("📝 编辑欢迎消息", callback_data="admin_welcome_set")],
+        [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
     ]
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -137,11 +136,11 @@ async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['setting_type'] = s_type
     context.user_data['setting_dtype'] = dtype
     
-    kb = [[InlineKeyboardButton("❌ Cancel", callback_data="admin_cancel_op")]]
+    kb = [[InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_op")]]
     
     await query.edit_message_text(
-        f"✏️ **Setting: {name}**\n\n"
-        f"Please enter the new value:",
+        f"✏️ 设置名称: {name}**\n\n"
+        f"选择新的值:",
         reply_markup=InlineKeyboardMarkup(kb),
         parse_mode='Markdown'
     )
@@ -181,12 +180,12 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
         
     except ValueError:
-        await update.message.reply_text("❌ Invalid format. Please enter a number.")
+        await update.message.reply_text("❌ 无效格式。请输入一个数字.")
         return WAIT_INPUT
 
 async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer("Cancelled")
-    await update.callback_query.edit_message_text("🚫 Operation Cancelled.")
+    await update.callback_query.answer("取消操作")
+    await update.callback_query.edit_message_text("🚫 操作已取消")
     return ConversationHandler.END
 
 @admin_only
@@ -216,7 +215,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
             else: 
                 # Resolving username requires database lookup or cache, 
                 # but ID is safer/easier for this scope.
-                await update.message.reply_text("⚠️ Please reply to a message or use User ID.")
+                await update.message.reply_text("⚠️ 请回复用户或直接使用用户ID")
                 return
             amount = int(args[1])
         except: 
@@ -224,12 +223,12 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if target_id and amount:
         economy.add_vouchers(target_id, amount)
-        await update.message.reply_text(f"✅ Gave **{amount}** vouchers to ID `{target_id}`", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ `{target_id}` 获得 {amount} 兑奖券", parse_mode='Markdown')
     else:
         await update.message.reply_text(
-            "usage:\n"
-            "1. Reply to user: `/give <amount>`\n"
-            "2. By ID: `/give <user_id> <amount>`", 
+            "用法:\n"
+            "1. 回复用户: `/give <数量>`\n"
+            "2. 通过ID: `/give <ID> <数量>`", 
             parse_mode='Markdown'
         )
 

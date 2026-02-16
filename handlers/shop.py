@@ -66,7 +66,7 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data == "shop_buy_voucher":
             # Check if enabled
             if not economy.is_voucher_buy_enabled():
-                await query.answer("❌ Voucher purchasing is disabled!", show_alert=True)
+                await query.answer("❌ 兑奖券购买功能已禁用!", show_alert=True)
                 await open_shop_menu(update, context) # Refresh to update UI
                 return
 
@@ -75,11 +75,11 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 db_user.points -= v_price
                 db_user.vouchers += 1
                 session.commit()
-                await query.answer("✅ Voucher purchased!", show_alert=True)
+                await query.answer("✅ 兑奖券购买成功!", show_alert=True)
                 # Refresh the menu to show new balance
                 await open_shop_menu(update, context) 
             else:
-                await query.answer(f"❌ Need {v_price} points!", show_alert=True)
+                await query.answer(f"❌ 需要 {v_price} 积分!", show_alert=True)
             return
 
         # B. Buying a Product
@@ -92,7 +92,7 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product = session.query(Product).filter_by(id=product_id).first()
         
         if not product or product.stock <= 0:
-            await query.answer("❌ Out of stock!", show_alert=True)
+            await query.answer("❌ 库存不足!", show_alert=True)
             return
             
         cost = int(product.cost)
@@ -103,13 +103,13 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🛒 **Purchase Successful!**\n{user.mention_html()} redeemed **{product.name}** for {cost} points.",
+                text=f"🛒 购买成功 \n{user.mention_html()},{product.name} 花费 {cost} 积分",
                 parse_mode='HTML'
             )
-            await query.answer("✅ Redeemed!", show_alert=True)
+            await query.answer("✅ 购买成功!", show_alert=True)
             await query.message.delete()
         else:
-            await query.answer(f"❌ Need {cost} points!", show_alert=True)
+            await query.answer(f"❌ 需要 {cost} 积分!", show_alert=True)
             
     finally:
         session.close()

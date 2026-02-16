@@ -37,7 +37,7 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
             # Shadow Mute (No points for 3 mins)
             antispam.add_shadow_mute(user.id, duration_minutes=3)
             await update.message.reply_text(
-                f"⚠️ {user.mention_html()} is spamming! \n🛡 管理刷屏惩罚,三分钟无法获得积分！",
+                f"⚠️ {user.mention_html()} 在刷屏! \n🛡 管理刷屏惩罚,三分钟无法获得积分！",
                 parse_mode='HTML'
             )
         else:

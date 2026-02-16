@@ -20,11 +20,11 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Ask Type
     keyboard = [
-        [InlineKeyboardButton("🛒 Point Shop (Guaranteed)", callback_data="type_shop")],
-        [InlineKeyboardButton("🎰 Lottery (Voucher + Chance)", callback_data="type_lottery")]
+        [InlineKeyboardButton("🛒 积分商店 ", callback_data="type_shop")],
+        [InlineKeyboardButton("🎰 刮刮乐 ", callback_data="type_lottery")]
     ]
     
-    text = "🎁 **Add New Product**\n\nSelect the Product Type:"
+    text = "🎁 新增商品\n\n请选择商品类型:"
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
@@ -39,7 +39,7 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     p_type = query.data.split('_')[1] # 'shop' or 'lottery'
     product_cache[query.from_user.id]['type'] = p_type
     
-    await query.edit_message_text(f"✅ Type: **{p_type.upper()}**\n\nNow enter the **Product Name**:", parse_mode='Markdown')
+    await query.edit_message_text(f"✅ 类型: {p_type.upper()}**\n\n请输入商品名称:", parse_mode='Markdown')
     return NAME
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -58,16 +58,16 @@ async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         p_type = product_cache[update.effective_user.id]['type']
         
         if p_type == 'lottery':
-            await update.message.reply_text("🎲 Enter **Win Chance** (0-100)%:")
+            await update.message.reply_text("🎲 设置中奖概率 (0 = 0%, 100 = 100%):")
             return CHANCE
         else:
             # Shop items have 100% chance, skip to stock
             product_cache[update.effective_user.id]['chance'] = 1.0
-            await update.message.reply_text("📦 Enter **Stock Quantity**:")
+            await update.message.reply_text("📦 设置商品库存 (0-999):")
             return STOCK
             
     except ValueError:
-        await update.message.reply_text("❌ Invalid number.")
+        await update.message.reply_text("❌ 无效数字，请重新输入:")
         return COST
 
 async def receive_chance(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,10 +75,10 @@ async def receive_chance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chance = float(update.message.text)
         if not (0 < chance <= 100): raise ValueError
         product_cache[update.effective_user.id]['chance'] = chance / 100.0
-        await update.message.reply_text("📦 Enter **Stock Quantity**:")
+        await update.message.reply_text("📦 设置商品库存 (0-999):")
         return STOCK
     except ValueError:
-        await update.message.reply_text("❌ Invalid. Enter number 0-100.")
+        await update.message.reply_text("❌ 无效数字，请重新输入 (0-100):")
         return CHANCE
 
 async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -98,19 +98,19 @@ async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.commit()
         session.close()
         
-        await update.message.reply_text(f"✅ **{data['type'].title()} Product Added!**\n{data['name']}")
+        await update.message.reply_text(f"✅ {data['type'].title()} 商品已添加！\n{data['name']}")
         return ConversationHandler.END
     except ValueError:
-        await update.message.reply_text("❌ Invalid integer.")
+        await update.message.reply_text("❌ 无效数字，请重新输入:")
         return STOCK
 
 async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancels the conversation."""
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text("🚫 Product creation cancelled.")
+        await update.callback_query.edit_message_text("🚫 商品创建已取消.")
     else:
-        await update.message.reply_text("🚫 Product creation cancelled.")
+        await update.message.reply_text("🚫 商品创建已取消.")
     return ConversationHandler.END
 
 @admin_only
@@ -123,13 +123,13 @@ async def start_remove_product(update: Update, context: ContextTypes.DEFAULT_TYP
     if not products:
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")]]
         await update.callback_query.edit_message_text(
-            "🗑 **Remove Product**\n\nNo products found.", 
+            "🗑 删除商品\n\nNo products found.", 
             reply_markup=InlineKeyboardMarkup(keyboard), 
             parse_mode='Markdown'
         )
         return
 
-    text = "🗑 **Remove Product**\nSelect an item to delete permanently:"
+    text = "🗑 删除商品\n请选择一个会永久删除:"
     keyboard = []
     
     for p in products:
@@ -159,9 +159,9 @@ async def handle_remove_product(update: Update, context: ContextTypes.DEFAULT_TY
             name = product.name
             session.delete(product)
             session.commit()
-            await query.answer(f"✅ Deleted: {name}", show_alert=True)
+            await query.answer(f"✅ 删除: {name}", show_alert=True)
         else:
-            await query.answer("❌ Product already deleted.", show_alert=True)
+            await query.answer("❌ 商品已删除.", show_alert=True)
             
     finally:
         session.close()

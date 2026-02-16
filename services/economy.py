@@ -134,7 +134,7 @@ def process_check_in(user_id: int, username: str, full_name: str):
         
         # 4. Check Limit
         if user.daily_check_in_count >= config.check_in_limit:
-            return False, f"📅 You have already checked in {config.check_in_limit} time(s) today!", 0.0
+            return False, f"📅 您今天已经签到 {config.check_in_limit} 次了!", 0.0
         
         # 5. Award Points
         points_to_add = config.check_in_points
@@ -143,7 +143,7 @@ def process_check_in(user_id: int, username: str, full_name: str):
         user.last_check_in_date = now
         
         session.commit()
-        return True, "✅ Check-in successful!", points_to_add
+        return True, "✅ 签到成功!", points_to_add
         
     except Exception as e:
         print(f"Check-in Error: {e}")

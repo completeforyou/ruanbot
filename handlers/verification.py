@@ -37,9 +37,9 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # 4. Send Simple Captcha Message
         captcha_msg = await context.bot.send_message(
             chat_id=chat.id,
-            text=f"🛑 **Stop right there, {member.mention_html()}!**\n\n"
-                 f"🛡 **Verification Required**\n"
-                 f"You have 3 minutes to solve this math problem to prove you are human:\n\n"
+            text=f"🛑 欢迎加入, {member.mention_html()}!**\n\n"
+                 f"🛡 请完成验证\n"
+                 f"请在三分钟内解答这道数学题,以验证你是人类:\n\n"
                  f"**{question_text}**",
             reply_markup=reply_markup,
             parse_mode='HTML'
@@ -71,12 +71,12 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     clicked_answer = int(parts[2])
 
     if clicker.id != target_user_id:
-        await query.answer("❌ This verification is not for you!", show_alert=True)
+        await query.answer("❌ 你无需进行此验证!", show_alert=True)
         return
 
     v_data = verification.get_verification(target_user_id)
     if not v_data:
-        await query.answer("❌ Verification expired or not found.", show_alert=True)
+        await query.answer("❌ 验证已过期或未找到.", show_alert=True)
         return
 
     time_taken = time.time() - v_data['time']
@@ -87,7 +87,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     # --- RULE 1: Anti-Bot Check (< 1 second) ---
     if time_taken < 1.0:
-        await query.answer("🤖 Bot detected! You clicked too fast.", show_alert=True)
+        await query.answer("🤖 系统判定为机器人操作！点击速度异常", show_alert=True)
         try:
             await chat.ban_member(target_user_id)
             await chat.unban_member(target_user_id)
@@ -135,7 +135,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             session.close()
 
             # 4. Clean up the Captcha Message
-            await query.answer("✅ Verification successful! You can now chat.", show_alert=True)
+            await query.answer("✅ 验证成功! 你现在可以聊天了.", show_alert=True)
             await query.message.delete()
             
             # 5. Send the Grand Personalized Welcome Message
@@ -166,7 +166,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as e:
             print(f"Unrestrict/Welcome failed: {e}")
     else:
-        await query.answer("❌ Wrong answer!", show_alert=True)
+        await query.answer("❌ 答案错误", show_alert=True)
         try:
             await chat.ban_member(target_user_id)
             await chat.unban_member(target_user_id)

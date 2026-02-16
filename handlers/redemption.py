@@ -18,18 +18,18 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vouchers = db_user.vouchers if db_user else 0
     session.close()
 
-    msg = f"🎰 **Voucher Lottery** 🎰\nYour Balance: 🎟 **{vouchers} Vouchers**\n\n"
+    msg = f"🎰 刮刮乐 🎰\n您有: 🎟 **{vouchers} 兑奖券**\n\n"
     
     if not products:
-        msg += "No lottery events running currently."
+        msg += "目前没有进行中的刮刮乐活动。"
         await update.message.reply_text(msg, parse_mode='Markdown')
         return
 
     keyboard = []
     for p in products:
         cost = int(p.cost)
-        msg += f"🎁 **{p.name}**\n   • Cost: 🎟 {cost} Voucher(s)\n   • Stock: {p.stock}\n\n"
-        keyboard.append([InlineKeyboardButton(f"🎲 Draw: {p.name}", callback_data=f"lottery_draw_{p.id}")])
+        msg += f"🎁 **{p.name}**\n   • 花费: 🎟 {cost} 兑奖券\n   • 库存: {p.stock}\n\n"
+        keyboard.append([InlineKeyboardButton(f"🎲 抽奖: {p.name}", callback_data=f"lottery_draw_{p.id}")])
 
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -44,13 +44,13 @@ async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE
         product = session.query(Product).filter_by(id=product_id).first()
         
         if not product or product.stock <= 0:
-            await query.answer("❌ Out of stock!", show_alert=True)
+            await query.answer("❌ 库存不足!", show_alert=True)
             return
 
         # CHECK VOUCHERS
         cost = int(product.cost)
         if not db_user or db_user.vouchers < cost:
-            await query.answer(f"❌ Need {cost} Vouchers! You have {db_user.vouchers}.", show_alert=True)
+            await query.answer(f"❌ 需要 {cost} 兑奖券! 您有 {db_user.vouchers}.", show_alert=True)
             return
 
         # Deduct Vouchers
@@ -62,13 +62,13 @@ async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE
             session.commit()
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 **JACKPOT!** {user.mention_html()} used {cost} Voucher and won **{product.name}**!",
+                text=f"🎉 中奖!!!!!🎉 {user.mention_html()} 适用 {cost} 兑奖券并赢得了 **{product.name}**!",
                 parse_mode='HTML'
             )
-            await query.answer("🎉 YOU WON!", show_alert=True)
+            await query.answer("🎉 中奖!!!!!", show_alert=True)
         else:
             session.commit()
-            await query.answer("📉 No luck this time. Try again!", show_alert=True)
+            await query.answer("📉 本次没有中奖。再试一次!", show_alert=True)
             
     finally:
         session.close()

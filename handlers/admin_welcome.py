@@ -9,7 +9,7 @@ MEDIA, TEXT, BUTTONS = range(3)
 _cache = {}
 
 def get_cancel_kb():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="admin_welcome_cancel")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_welcome_cancel")]])
 
 @admin_only
 @private_chat_only
@@ -17,9 +17,9 @@ async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _cache[update.effective_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
     
     text_msg = (
-        "📝 **Welcome Message Setup**\n\n"
-        "**Step 1:** Send a **Photo, Video, or GIF** to attach to the welcome message.\n\n"
-        "*(Or type /skip if you only want text)*"
+        "📝 欢迎消息设置\n\n"
+        "1: 发送一张照片、视频或GIF以附加到欢迎消息。\n\n"
+        "(输入 /skip 跳过此步骤, 仅使用文本欢迎消息)"
     )
 
     # Handle if clicked from Admin Panel (Callback) vs Command
@@ -47,13 +47,12 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _cache[user_id]['media_id'] = update.message.animation.file_id
         _cache[user_id]['media_type'] = 'animation'
     else:
-        await update.message.reply_text("❌ Please send a valid photo/video, or /skip.")
+        await update.message.reply_text("❌ 请发送照片,视频或GIF,或输入 /skip.")
         return MEDIA
 
     await update.message.reply_text(
-        "**Step 2:** Send the **Text** for the welcome message.\n\n"
-        "💡 **Tip:** Use `{user}` in your text where you want to tag the person.\n"
-        "*(The math captcha is added automatically)*",
+        "2: 发送欢迎消息的文本\n\n"
+        "💡 提示: 在文本中使用 `{user}` 来标记用户。\n"
         parse_mode='Markdown'
     )
     return TEXT
@@ -62,10 +61,10 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _cache[update.effective_user.id]['text'] = update.message.text
     
     await update.message.reply_text(
-        "**Step 3:** Add custom URL **Buttons**.\n"
-        "Format: `Button Name : https://link.com`\n"
-        "Send one per line.\n\n"
-        "*(Or type /skip)*",
+        "3: 添加自定义URL按钮。\n"
+        "格式: `按钮名称 : https://link.com`\n"
+        "每行一个.\n\n"
+        "*(或输入 /skip)*",
         parse_mode='Markdown'
     )
     return BUTTONS
@@ -98,11 +97,11 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session.commit()
     session.close()
     
-    await update.message.reply_text("✅ **Welcome Message Updated!**")
+    await update.message.reply_text("✅ 欢迎消息已更新!")
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚫 Setup cancelled.")
+    await update.message.reply_text("🚫 设置已取消.")
     return ConversationHandler.END
 
 welcome_conv_handler = ConversationHandler(
