@@ -3,7 +3,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from database import Session, Product
 from utils.decorators import admin_only, private_chat_only
-from handlers.admin import admin_panel
 
 # Steps
 TYPE, NAME, COST, CHANCE, STOCK = range(5)
