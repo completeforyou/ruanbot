@@ -17,7 +17,7 @@ def register_handlers(application):
     application.add_handler(admin_products.conv_handler)
     application.add_handler(admin.settings_conv_handler)
     
-    # 3. Admin Panel & Commands
+    # 3. Admin Panel & Command
     application.add_handler(CommandHandler("admin", admin.admin_panel))
     application.add_handler(CommandHandler("give", admin.give_voucher_command))
     
