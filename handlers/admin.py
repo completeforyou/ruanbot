@@ -80,8 +80,8 @@ async def show_shop_menu(update: Update):
 async def show_voucher_menu(update: Update):
     is_enabled = economy.is_voucher_buy_enabled()
     current_cost = economy.get_voucher_cost()
-    status_icon = "✅ ON" if is_enabled else "🔴 OFF"
-    toggle_btn_text = "Disable Buying" if is_enabled else "Enable Buying"
+    status_icon = "✅ 关闭" if is_enabled else "🔴 O开启"
+    toggle_btn_text = "关闭购买模式" if is_enabled else "开启购买模式"
     
     text = (
         f"🎟 兑奖券设置\n"
