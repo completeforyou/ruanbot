@@ -9,7 +9,7 @@ TYPE, NAME, COST, CHANCE, STOCK = range(5)
 product_cache = {}
 
 def get_cancel_kb():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_home")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]])
 # Entry Points
 @admin_only
 @private_chat_only
@@ -22,7 +22,7 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🛒 积分商店 ", callback_data="type_shop")],
         [InlineKeyboardButton("🎰 刮刮乐 ", callback_data="type_lottery")],
-        [InlineKeyboardButton("❌ 取消", callback_data="admin_home")]
+        [InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]
     ]
     
     text = "🎁 新增商品\n\n请选择商品类型:"

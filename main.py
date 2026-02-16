@@ -50,8 +50,8 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler("give", admin.give_voucher_command))
     
     # Generic Admin Callback
-    application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
     application.add_handler(CallbackQueryHandler(admin_products.handle_remove_product, pattern="^admin_delete_prod_"))
+    application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
 
     # 4. Economy & Games
     application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))
