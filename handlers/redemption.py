@@ -18,7 +18,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vouchers = db_user.vouchers if db_user else 0
     session.close()
 
-    msg = f"🎰 \n刮刮乐 🎰\n"
+    msg = f"🎰 付费抽奖 🎰\n"
     msg += f"━━━━━━━━━━━━━━\n"
     
     if not products:

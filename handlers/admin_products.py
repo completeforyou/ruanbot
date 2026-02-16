@@ -10,6 +10,7 @@ product_cache = {}
 
 def get_cancel_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]])
+
 # Entry Points
 @admin_only
 @private_chat_only
@@ -18,10 +19,11 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     product_cache[user_id] = {}
     
-    # Ask Type
+    # Ask Type - ADDED SCRATCHER OPTION
     keyboard = [
-        [InlineKeyboardButton("🛒 积分商店 ", callback_data="type_shop")],
-        [InlineKeyboardButton("🎰 刮刮乐 ", callback_data="type_lottery")],
+        [InlineKeyboardButton("🛒 积分商店 (100% 获得)", callback_data="type_shop")],
+        [InlineKeyboardButton("🃏 积分刮刮乐 (概率获得)", callback_data="type_scratcher")], 
+        [InlineKeyboardButton("🎟 代币抽奖 (概率获得)", callback_data="type_lottery")],
         [InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]
     ]
     
@@ -37,10 +39,18 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    p_type = query.data.split('_')[1] # 'shop' or 'lottery'
+    p_type = query.data.split('_')[1] # 'shop', 'scratcher', or 'lottery'
     product_cache[query.from_user.id]['type'] = p_type
     
-    await query.edit_message_text(f"✅ 类型: {p_type.upper()}\n\n请输入商品名称:",
+    type_names = {
+        'shop': "🛒 积分商店",
+        'scratcher': "🃏 积分刮刮乐",
+        'lottery': "🎟 代币抽奖"
+    }
+    
+    t_name = type_names.get(p_type, p_type)
+    
+    await query.edit_message_text(f"✅ 类型: {t_name}\n\n请输入商品名称:",
                                   reply_markup=get_cancel_kb(),
                                   parse_mode='Markdown')
     return NAME
@@ -49,8 +59,11 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     product_cache[update.effective_user.id]['name'] = update.message.text
     p_type = product_cache[update.effective_user.id]['type']
     
-    currency = "积分" if p_type == 'shop' else "兑奖券"
-    await update.message.reply_text(f"💰 请设置所需{currency}数量:", reply_markup=get_cancel_kb())
+    # Determine Currency based on type
+    # Lottery uses Vouchers, Shop and Scratcher use Points
+    currency = "兑奖券" if p_type == 'lottery' else "积分"
+    
+    await update.message.reply_text(f"💰 请设置所需 {currency} 数量:", reply_markup=get_cancel_kb())
     return COST
 
 async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,7 +73,8 @@ async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         p_type = product_cache[update.effective_user.id]['type']
         
-        if p_type == 'lottery':
+        # If it's a game of chance (Lottery OR Scratcher), ask for probability
+        if p_type in ['lottery', 'scratcher']:
             await update.message.reply_text("🎲 设置中奖概率 (0 = 0%, 100 = 100%):", reply_markup=get_cancel_kb())
             return CHANCE
         else:
@@ -76,7 +90,7 @@ async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_chance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         chance = float(update.message.text)
-        if not (0 < chance <= 100): raise ValueError
+        if not (0 <= chance <= 100): raise ValueError
         product_cache[update.effective_user.id]['chance'] = chance / 100.0
         await update.message.reply_text("📦 设置商品库存 (0-999):", reply_markup=get_cancel_kb())
         return STOCK

@@ -37,10 +37,10 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # 4. Send Simple Captcha Message
         captcha_msg = await context.bot.send_message(
             chat_id=chat.id,
-            text=f"🛑 欢迎加入, {member.mention_html()}!**\n\n"
+            text=f"🛑 欢迎加入, {member.mention_html()}!\n\n"
                  f"🛡 请完成验证\n"
                  f"请在三分钟内解答这道数学题,以验证你是人类:\n\n"
-                 f"**{question_text}**",
+                 f"{question_text}",
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
