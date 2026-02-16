@@ -80,7 +80,7 @@ async def show_shop_menu(update: Update):
 async def show_voucher_menu(update: Update):
     is_enabled = economy.is_voucher_buy_enabled()
     current_cost = economy.get_voucher_cost()
-    status_icon = "✅ 关闭" if is_enabled else "🔴 O开启"
+    status_icon = "✅ 关闭" if is_enabled else "🔴 开启"
     toggle_btn_text = "关闭购买模式" if is_enabled else "开启购买模式"
     
     text = (
@@ -173,7 +173,7 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 economy.set_check_in_config(c_pts, val)
                 
-        await update.message.reply_text("✅ **Setting Updated!**", parse_mode='Markdown')
+        await update.message.reply_text("✅ 配置已更新", parse_mode='Markdown')
         
         # Return to menu prompt (Admin can click /admin or buttons)
         await update.message.reply_text("Type /admin to return to panel.")

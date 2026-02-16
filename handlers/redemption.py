@@ -18,10 +18,11 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vouchers = db_user.vouchers if db_user else 0
     session.close()
 
-    msg = f"🎰 \n刮刮乐 🎰\n您有: 🎟 **{vouchers} 兑奖券\n\n"
+    msg = f"🎰 \n刮刮乐 🎰\n"
+    msg += f"━━━━━━━━━━━━━━\n"
     
     if not products:
-        msg += "目前没有进行中的刮刮乐活动。"
+        msg += "目前没有进行中的抽奖活动。"
         await update.message.reply_text(msg, parse_mode='Markdown')
         return
 
