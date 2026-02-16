@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import Session, Product, User
 from services import economy
+import config
 
 async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows Point Shop items + Option to buy Vouchers."""
@@ -16,7 +17,9 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         points = int(db_user.points) if db_user else 0
         vouchers = db_user.vouchers if db_user else 0
         
+        # --- CAPTION TEXT ---
         msg = f"🛒 积分商城\n"
+        msg += f"━━━━━━━━━━━━━━\n"
         msg += f"💰 积分: `{points}` | 🎟 兑奖券: `{vouchers}`\n\n"
         
         keyboard = []
@@ -24,10 +27,16 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 1. Standard Products
         if products:
             msg += "可兑换商品\n"
+            row = []
             for p in products:
                 cost = int(p.cost)
-                msg += f"• {p.name} - 💰 {cost} 积分\n"
-                keyboard.append([InlineKeyboardButton(f"购买 {p.name} ({cost} 积分)", callback_data=f"shop_buy_{p.id}")])
+                msg += f"• {p.name} - 💰 {cost}\n"
+                row.append(InlineKeyboardButton(f"{p.name} ({cost})", callback_data=f"shop_buy_{p.id}"))
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
         else:
             msg += "(库存不足)\n"
             
@@ -35,23 +44,42 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += "\n积分兑换兑奖券:\n"
         if economy.is_voucher_buy_enabled():
             v_price = economy.get_voucher_cost()
+            msg += f"\n🎟 兑换\n1 兑奖券 = {v_price} 积分"
             keyboard.append([InlineKeyboardButton(f"🎟 兑换 1 张兑奖券 ({v_price} 分)", callback_data="shop_buy_voucher")])
         else:
             msg += "\n🚫 兑奖券兑换功能目前已禁用"
         
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # --- FIX: Handle both Command (New Message) and Callback (Edit Message) ---
+        # --- SENDING LOGIC ---
+        banner_url = config.SHOP_BANNER_URL
         if update.callback_query:
-            # If called from a button (refresh), edit the old message
-            await update.callback_query.edit_message_text(text=msg, reply_markup=reply_markup, parse_mode='Markdown')
+            # If refreshing (clicking a button), we edit the CAPTION
+            # Note: We can't turn a text msg into a photo msg, but if the menu 
+            # was started with /shop, it's already a photo.
+            try:
+                await update.callback_query.edit_message_caption(caption=msg, reply_markup=reply_markup, parse_mode='Markdown')
+            except Exception:
+                # Fallback: If the original message was text (old version), delete and send new photo
+                await update.callback_query.message.delete()
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=banner_url,
+                    caption=msg,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
         else:
-            # If called from /shop command, send a new message
-            await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode='Markdown')
+            # If called from /shop command, send a PHOTO
+            await update.message.reply_photo(
+                photo=banner_url,
+                caption=msg,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
 
     finally:
         session.close()
-
 async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
