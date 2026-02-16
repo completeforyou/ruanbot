@@ -2,6 +2,7 @@
 import logging
 import config
 from database import init_db
+from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 from telegram.request import HTTPXRequest
 from handlers import register_handlers
@@ -43,4 +44,4 @@ if __name__ == '__main__':
     application.add_handler(MessageHandler(filters.CAPTION, global_message_handler))
     
     print("Bot is running...")
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
