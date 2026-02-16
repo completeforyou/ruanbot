@@ -1,6 +1,6 @@
 # handlers/__init__.py
-from telegram.ext import MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from . import moderation, economy, admin, admin_products, redemption, verification, admin_welcome, shop, scratchers
+from telegram.ext import MessageHandler, CommandHandler, CallbackQueryHandler, filters, ChatMemberHandler
+from . import economy, admin, admin_products, redemption, verification, admin_welcome, shop, scratchers, invitation
 
 def register_handlers(application):
     """
@@ -9,6 +9,8 @@ def register_handlers(application):
     # 1. Verification & Welcome (High Priority)
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
     application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
+
+    application.add_handler(ChatMemberHandler(invitation.track_join_event, ChatMemberHandler.CHAT_MEMBER))
     
     # 2. Admin Wizards (Conversation Handlers)
     application.add_handler(admin_welcome.welcome_conv_handler)
@@ -25,6 +27,7 @@ def register_handlers(application):
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
 
     # 4. Economy & Games
+    application.add_handler(MessageHandler(filters.Regex(r'^专属链接$'), invitation.generate_invite_link))
     application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))
     application.add_handler(MessageHandler(filters.Regex(r'(?i)^(签到|checkin)$'), economy.handle_check_in_request))
     application.add_handler(MessageHandler(filters.Regex(r'^抽奖$'), redemption.open_lottery_menu))
