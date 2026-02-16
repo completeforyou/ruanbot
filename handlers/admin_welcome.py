@@ -52,7 +52,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "2: 发送欢迎消息的文本\n\n"
-        "💡 提示: 在文本中使用 `{user}` 来标记用户。\n"
+        "💡 提示: 在文本中使用 `{user}` 来标记用户\n",
         parse_mode='Markdown'
     )
     return TEXT
