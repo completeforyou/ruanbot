@@ -49,8 +49,8 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     product_cache[update.effective_user.id]['name'] = update.message.text
     p_type = product_cache[update.effective_user.id]['type']
     
-    currency = "POINTS" if p_type == 'shop' else "VOUCHERS"
-    await update.message.reply_text(f"💰 请设置所需积分{currency}:", reply_markup=get_cancel_kb())
+    currency = "积分" if p_type == 'shop' else "兑奖券"
+    await update.message.reply_text(f"💰 请设置所需{currency}数量:", reply_markup=get_cancel_kb())
     return COST
 
 async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):

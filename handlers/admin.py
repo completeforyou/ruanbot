@@ -86,10 +86,10 @@ async def show_voucher_menu(update: Update):
     text = (
         f"🎟 兑奖券设置\n"
         f"🛒 可否购买模式{status_icon}\n"
-        f"💰 : 所需`{current_cost} 积分`\n\n"
+        f"💰 : 需要`{current_cost} 积分兑换`\n\n"
     )
     keyboard = [
-        [InlineKeyboardButton("💲 设置所需积分", callback_data="admin_set_vcost")],
+        [InlineKeyboardButton("💲 设置所需兑换积分", callback_data="admin_set_vcost")],
         [InlineKeyboardButton(toggle_btn_text, callback_data="admin_toggle_voucher")],
         [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
     ]
@@ -125,9 +125,9 @@ async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     setting_map = {
-        "admin_set_vcost": ("Voucher Cost", "integer"),
-        "admin_set_cpts": ("Check-in Points", "float"),
-        "admin_set_clim": ("Check-in Daily Limit", "integer"),
+        "admin_set_vcost": ("兑奖券所需积分", "integer"),
+        "admin_set_cpts": ("签到积分", "float"),
+        "admin_set_clim": ("每天可签到次数", "integer"),
     }
     
     s_type = query.data
@@ -176,7 +176,7 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ 配置已更新", parse_mode='Markdown')
         
         # Return to menu prompt (Admin can click /admin or buttons)
-        await update.message.reply_text("Type /admin to return to panel.")
+        await update.message.reply_text("输入 /admin 控制版面")
         return ConversationHandler.END
         
     except ValueError:
