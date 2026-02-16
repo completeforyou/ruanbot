@@ -20,7 +20,6 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # --- CAPTION TEXT ---
         msg = f"🛒 积分商城\n"
         msg += f"━━━━━━━━━━━━━━\n"
-        msg += f"💰 积分: `{points}` | 🎟 兑奖券: `{vouchers}`\n\n"
         
         keyboard = []
         
@@ -38,10 +37,9 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if row:
                 keyboard.append(row)
         else:
-            msg += "(库存不足)\n"
+            msg += "现无商品\n"
             
         # 2. Buy Vouchers Button (Check if enabled)
-        msg += "\n积分兑换兑奖券:\n"
         if economy.is_voucher_buy_enabled():
             v_price = economy.get_voucher_cost()
             msg += f"\n🎟 兑换\n1 兑奖券 = {v_price} 积分"
