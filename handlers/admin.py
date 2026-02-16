@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
 from utils.decorators import admin_only, private_chat_only
 from services import economy
 from database import Session, SystemConfig, Product
+from handlers import admin_products
 
 # --- MAIN PANEL ---
 @admin_only
@@ -55,6 +56,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current = economy.is_voucher_buy_enabled()
         economy.set_voucher_buy_status(not current)
         await show_voucher_menu(update)
+    elif data == "admin_prod_remove":
+        await admin_products.start_remove_product(update, context)
 
 # --- SUB-MENUS ---
 

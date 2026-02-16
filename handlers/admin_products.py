@@ -104,9 +104,70 @@ async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid integer.")
         return STOCK
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚫 Cancelled.")
+async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancels the conversation."""
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text("🚫 Product creation cancelled.")
+    else:
+        await update.message.reply_text("🚫 Product creation cancelled.")
     return ConversationHandler.END
+
+@admin_only
+async def start_remove_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lists products with delete buttons."""
+    session = Session()
+    products = session.query(Product).all()
+    session.close()
+
+    if not products:
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")]]
+        await update.callback_query.edit_message_text(
+            "🗑 **Remove Product**\n\nNo products found.", 
+            reply_markup=InlineKeyboardMarkup(keyboard), 
+            parse_mode='Markdown'
+        )
+        return
+
+    text = "🗑 **Remove Product**\nSelect an item to delete permanently:"
+    keyboard = []
+    
+    for p in products:
+        # Button Format: "Name (Type) - 🗑"
+        btn_text = f"{p.name} ({p.type}) 🗑"
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"admin_delete_prod_{p.id}")])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")])
+    
+    await update.callback_query.edit_message_text(
+        text, 
+        reply_markup=InlineKeyboardMarkup(keyboard), 
+        parse_mode='Markdown'
+    )
+
+@admin_only
+async def handle_remove_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Deletes the product and refreshes the list."""
+    query = update.callback_query
+    prod_id = int(query.data.split('_')[-1])
+    
+    session = Session()
+    try:
+        # Find and Delete
+        product = session.query(Product).filter_by(id=prod_id).first()
+        if product:
+            name = product.name
+            session.delete(product)
+            session.commit()
+            await query.answer(f"✅ Deleted: {name}", show_alert=True)
+        else:
+            await query.answer("❌ Product already deleted.", show_alert=True)
+            
+    finally:
+        session.close()
+    
+    # Refresh the list
+    await start_remove_product(update, context)
 
 # Registry
 conv_handler = ConversationHandler(
@@ -121,5 +182,6 @@ conv_handler = ConversationHandler(
         CHANCE: [MessageHandler(filters.TEXT, receive_chance)],
         STOCK: [MessageHandler(filters.TEXT, receive_stock)],
     },
-    fallbacks=[CommandHandler('cancel', cancel)],
+    fallbacks=[CommandHandler('cancel', cancel_op),
+               CallbackQueryHandler(cancel_op, pattern="^admin_cancel_prod$")],
 )
