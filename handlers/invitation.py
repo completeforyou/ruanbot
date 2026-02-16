@@ -1,20 +1,20 @@
 # handlers/invitation.py
+import logging
 from telegram import Update, ChatMember, ChatMemberUpdated
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
-from database import Session, User
+from database import Session
 from models.referral import Referral
 from models.invite_link import InviteLink
 from services import economy
 
 # Config
-INVITE_REWARD_POINTS = 20
+INVITE_REWARD_POINTS = 100
+
+# Set up logging to print to console
+logger = logging.getLogger(__name__)
 
 async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Command: 专属链接
-    Generates a link and SAVES it to the DB mapped to the user.
-    """
     chat = update.effective_chat
     user = update.effective_user
 
@@ -23,35 +23,34 @@ async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     try:
-        # 1. Create the link
+        # Create link
         invite = await context.bot.create_chat_invite_link(
             chat_id=chat.id,
             name=f"Invite: {user.first_name}", 
             creates_join_request=False
         )
         
-        # 2. Save mapping to DB (Link URL -> User ID)
+        # Save to DB
         session = Session()
         try:
-            # Remove old links for this user/chat if you want to keep it clean (Optional)
-            # session.query(InviteLink).filter_by(creator_id=user.id, chat_id=chat.id).delete()
+            # We strip whitespace to ensure exact match later
+            link_clean = invite.invite_link.strip()
             
             new_link = InviteLink(
-                link=invite.invite_link,
+                link=link_clean,
                 creator_id=user.id,
                 chat_id=chat.id
             )
             session.add(new_link)
             session.commit()
-            print(f"✅ Saved invite link: {invite.invite_link} -> User {user.id}")
+            logger.info(f"✅ LINK SAVED: {link_clean} -> User {user.id}")
             
         except Exception as e:
-            print(f"❌ Database Error saving link: {e}")
+            logger.error(f"❌ DB ERROR: {e}")
             session.rollback()
         finally:
             session.close()
 
-        # 3. Reply to user
         await update.message.reply_text(
             f"✅ {user.mention_html()} 的专属链接:\n\n"
             f"{invite.invite_link}\n\n"
@@ -60,66 +59,84 @@ async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         
     except TelegramError as e:
-        await update.message.reply_text("❌ 生成失败: 机器人不是管理员或没有 '管理邀请链接' 权限。")
+        await update.message.reply_text("❌ 生成失败: 机器人需要管理员权限。")
+        logger.error(f"Generate Error: {e}")
 
 async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"🔎 Checking join event in chat {update.effective_chat.id}...")
+    """
+    DEBUG VERSION: Prints exactly what is happening.
+    """
+    logger.info("⚡️ UPDATE RECEIVED: Checking Chat Member Status...")
 
-    # 1. Check Status Change (Joined?)
+    # 1. Check if it's a join event
     result = _extract_status_change(update.chat_member)
-    if result is None: return
-
-    was_member, is_member = result
-    if was_member or not is_member: return
-
-    # 2. Get the Link Info
-    invite_used = update.chat_member.invite_link
-    new_member = update.chat_member.new_chat_member
-    
-    if not invite_used:
-        print("❌ User joined without a specific invite link (or via vanity URL).")
+    if result is None:
         return
 
-    link_url = invite_used.invite_link
-    print(f"🔗 Link used: {link_url}")
+    was_member, is_member = result
+    
+    # Debug print
+    logger.info(f"👤 Status Change: WasMember={was_member}, IsMember={is_member}")
 
-    # 3. LOOKUP IN DATABASE
+    if was_member or not is_member:
+        return # Not a new join
+
+    # 2. Extract Data
+    new_member = update.chat_member.new_chat_member
+    invite_used = update.chat_member.invite_link
+
+    logger.info(f"👤 User Joined: {new_member.user.id} ({new_member.user.first_name})")
+
+    # --- CRITICAL CHECK ---
+    if not invite_used:
+        logger.warning("❌ NO INVITE LINK FOUND in update. (User might have joined via username/public button)")
+        return
+
+    link_url = invite_used.invite_link.strip()
+    logger.info(f"🔗 Link Used: {link_url}")
+
+    # 3. Lookup in DB
     session = Session()
     try:
+        # Debug: Print all links to verify
+        # all_links = session.query(InviteLink).all()
+        # logger.info(f"🔍 Links in DB: {[l.link for l in all_links]}")
+
         link_record = session.query(InviteLink).filter_by(link=link_url).first()
         
         if not link_record:
-            print(f"❌ Link not found in DB (Maybe created before update?): {link_url}")
+            logger.warning(f"❌ LINK NOT FOUND IN DB: {link_url}")
             return
 
         inviter_id = link_record.creator_id
         joined_user = new_member.user
 
+        logger.info(f"✅ Match Found! Inviter: {inviter_id}, Joiner: {joined_user.id}")
+
+        # 4. Self-Invite Check
         if inviter_id == joined_user.id:
-            return # Self-invite
+            logger.warning("⚠️ Self-invite detected. No points awarded.")
+            return
 
-        print(f"✅ Real Inviter Found: {inviter_id}")
-
-        # 4. Check Duplicate Referral
+        # 5. Duplicate Check
         exists = session.query(Referral).filter_by(
             inviter_id=inviter_id, 
             invited_user_id=joined_user.id
         ).first()
 
         if exists:
-            print("⚠️ Referral already exists.")
+            logger.warning("⚠️ Referral already exists.")
             return
         
-        # 5. Save & Reward
+        # 6. Success: Save & Reward
         new_ref = Referral(inviter_id=inviter_id, invited_user_id=joined_user.id)
         session.add(new_ref)
         
-        # Add points (Use economy service)
         economy.add_points(inviter_id, float(INVITE_REWARD_POINTS))
-        
         session.commit()
+        
+        logger.info(f"💰 POINTS AWARDED to {inviter_id}")
 
-        # 6. Notify
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f"📢 邀请成功!\n"
@@ -129,7 +146,7 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        print(f"❌ Referral Error: {e}")
+        logger.error(f"❌ PROCESS ERROR: {e}")
         session.rollback()
     finally:
         session.close()
@@ -138,7 +155,8 @@ def _extract_status_change(chat_member_update: ChatMemberUpdated):
     status_change = chat_member_update.difference().get("status")
     old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
 
-    if status_change is None: return None
+    if status_change is None:
+        return None
 
     old_status, new_status = status_change
     
