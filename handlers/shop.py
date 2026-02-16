@@ -16,28 +16,28 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         points = int(db_user.points) if db_user else 0
         vouchers = db_user.vouchers if db_user else 0
         
-        msg = f"🛒 **Point Shop**\n"
-        msg += f"💰 Points: `{points}` | 🎟 Vouchers: `{vouchers}`\n\n"
+        msg = f"🛒 积分商城\n"
+        msg += f"💰 积分: `{points}` | 🎟 兑奖券: `{vouchers}`\n\n"
         
         keyboard = []
         
         # 1. Standard Products
         if products:
-            msg += "**Redeemable Items:**\n"
+            msg += "可兑换商品\n"
             for p in products:
                 cost = int(p.cost)
-                msg += f"• {p.name} - 💰 {cost} Pts\n"
-                keyboard.append([InlineKeyboardButton(f"Buy {p.name} ({cost} pts)", callback_data=f"shop_buy_{p.id}")])
+                msg += f"• {p.name} - 💰 {cost} 积分\n"
+                keyboard.append([InlineKeyboardButton(f"购买 {p.name} ({cost} 积分)", callback_data=f"shop_buy_{p.id}")])
         else:
-            msg += "(No items currently in stock)\n"
+            msg += "(库存不足)\n"
             
         # 2. Buy Vouchers Button (Check if enabled)
-        msg += "\n**Exchange:**"
+        msg += "\n积分兑换兑奖券:\n"
         if economy.is_voucher_buy_enabled():
             v_price = economy.get_voucher_cost()
-            keyboard.append([InlineKeyboardButton(f"🎟 Buy 1 Voucher ({v_price} pts)", callback_data="shop_buy_voucher")])
+            keyboard.append([InlineKeyboardButton(f"🎟 兑换 1 张兑奖券 ({v_price} 分)", callback_data="shop_buy_voucher")])
         else:
-            msg += "\n🚫 *Voucher purchasing is currently disabled by Admin.*"
+            msg += "\n🚫 兑奖券兑换功能目前已禁用"
         
         reply_markup = InlineKeyboardMarkup(keyboard)
 

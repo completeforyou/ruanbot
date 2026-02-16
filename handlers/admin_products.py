@@ -39,7 +39,7 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     p_type = query.data.split('_')[1] # 'shop' or 'lottery'
     product_cache[query.from_user.id]['type'] = p_type
     
-    await query.edit_message_text(f"✅ 类型: {p_type.upper()}**\n\n请输入商品名称:", parse_mode='Markdown')
+    await query.edit_message_text(f"✅ 类型: {p_type.upper()}\n\n请输入商品名称:", parse_mode='Markdown')
     return NAME
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,7 +47,7 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     p_type = product_cache[update.effective_user.id]['type']
     
     currency = "POINTS" if p_type == 'shop' else "VOUCHERS"
-    await update.message.reply_text(f"💰 Enter the cost in **{currency}**:")
+    await update.message.reply_text(f"💰 请设置所需积分{currency}:")
     return COST
 
 async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,7 +137,7 @@ async def start_remove_product(update: Update, context: ContextTypes.DEFAULT_TYP
         btn_text = f"{p.name} ({p.type}) 🗑"
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"admin_delete_prod_{p.id}")])
     
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")])
+    keyboard.append([InlineKeyboardButton("🔙 返回", callback_data="admin_shop_menu")])
     
     await update.callback_query.edit_message_text(
         text, 

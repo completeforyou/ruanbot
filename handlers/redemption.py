@@ -18,7 +18,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vouchers = db_user.vouchers if db_user else 0
     session.close()
 
-    msg = f"🎰 刮刮乐 🎰\n您有: 🎟 **{vouchers} 兑奖券**\n\n"
+    msg = f"🎰 \n刮刮乐 🎰\n您有: 🎟 **{vouchers} 兑奖券\n\n"
     
     if not products:
         msg += "目前没有进行中的刮刮乐活动。"
@@ -28,7 +28,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = []
     for p in products:
         cost = int(p.cost)
-        msg += f"🎁 **{p.name}**\n   • 花费: 🎟 {cost} 兑奖券\n   • 库存: {p.stock}\n\n"
+        msg += f"🎁 \n{p.name}\n   • 花费: 🎟 {cost} 兑奖券\n   • 库存: {p.stock}\n\n"
         keyboard.append([InlineKeyboardButton(f"🎲 抽奖: {p.name}", callback_data=f"lottery_draw_{p.id}")])
 
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
@@ -62,7 +62,7 @@ async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE
             session.commit()
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 中奖!!!!!🎉 {user.mention_html()} 适用 {cost} 兑奖券并赢得了 **{product.name}**!",
+                text=f"🎉 中奖!!!!!🎉 {user.mention_html()} 花费 {cost} 兑奖券并赢得了 {product.name}**!",
                 parse_mode='HTML'
             )
             await query.answer("🎉 中奖!!!!!", show_alert=True)
