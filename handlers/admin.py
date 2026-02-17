@@ -234,7 +234,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if target_id and amount:
         economy.add_vouchers(target_id, amount)
         user_mention = mention_html(target_id, target_name)
-        await update.message.reply_text(f"✅ {user_mention} 获得 {amount} 兑奖券", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ {user_mention} 获得 {amount} 兑奖券", parse_mode='HTML')
     else:
         await update.message.reply_text(
             "用法:\n"
