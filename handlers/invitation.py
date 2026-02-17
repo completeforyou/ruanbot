@@ -10,8 +10,6 @@ from models.user import User
 from services import economy
 
 # Config
-INVITE_REWARD_POINTS = 20
-
 async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Command: 专属链接
@@ -97,6 +95,9 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     link_url = invite_used.invite_link
 
+    config = economy.get_system_config()
+    reward_points = config['invite_reward_points']
+
     # 3. Database Processing
     session = Session()
     try:
@@ -133,14 +134,14 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close() # Close session before calling economy service
         
         # Award Points
-        economy.add_points(inviter_id, float(INVITE_REWARD_POINTS))
+        economy.add_points(inviter_id, float(reward_points))
 
         # Notify Group
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f"📢 <b>邀请成功!</b>\n"
                  f"🎉 {mention_html(inviter_name)} 邀请了 {user.mention_html()}!\n"
-                 f"💰 邀请人获得奖励: <b>{INVITE_REWARD_POINTS}</b> 积分",
+                 f"💰 邀请人获得奖励: <b>{reward_points}</b> 积分",
             parse_mode='HTML'
         )
 

@@ -85,59 +85,96 @@ def add_vouchers(user_id: int, amount: int):
     finally:
         session.close()
 
-def get_voucher_cost() -> int:
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        return config.voucher_cost if config else 500
-    finally:
-        session.close()
-
-def set_voucher_cost(cost: int):
+def get_system_config():
+    """Returns a dictionary of all system settings."""
     session = Session()
     try:
         config = session.query(SystemConfig).filter_by(id=1).first()
         if not config:
             config = SystemConfig(id=1)
             session.add(config)
-        config.voucher_cost = cost
-        session.commit()
-        return True
+            session.commit()
+            session.refresh(config)
+            
+        return {
+            'check_in_points': config.check_in_points,
+            'check_in_limit': config.check_in_limit,
+            'voucher_cost': config.voucher_cost,
+            'voucher_buy_enabled': config.voucher_buy_enabled,
+            'invite_reward_points': config.invite_reward_points,
+            'max_daily_points': config.max_daily_points,
+            'spam_threshold': config.spam_threshold,
+            'spam_limit': config.spam_limit
+        }
     finally:
         session.close()
 
-def process_check_in(user_id: int, username: str, full_name: str):
+def update_system_config(**kwargs):
     """
-    Handles user check-in.
-    Returns: (Success: bool, Message: str, PointsAdded: float)
+    Generic updater. Example: update_system_config(invite_reward_points=50)
     """
     session = Session()
     try:
-        # 1. Get User
+        config = session.query(SystemConfig).filter_by(id=1).first()
+        if not config:
+            config = SystemConfig(id=1)
+            session.add(config)
+        
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+        
+        session.commit()
+        return True
+    except Exception as e:
+        print(f"Config Update Error: {e}")
+        return False
+    finally:
+        session.close()
+
+def get_voucher_cost() -> int:
+    return get_system_config()['voucher_cost']
+
+def is_voucher_buy_enabled() -> bool:
+    return get_system_config()['voucher_buy_enabled']
+
+def set_voucher_buy_status(enabled: bool):
+    return update_system_config(voucher_buy_enabled=enabled)
+
+def set_voucher_cost(cost: int):
+    return update_system_config(voucher_cost=cost)
+
+def set_check_in_config(points: float, limit: int):
+    return update_system_config(check_in_points=points, check_in_limit=limit)
+
+def process_check_in(user_id: int, username: str, full_name: str):
+    # Update this to use the new config fetcher
+    session = Session()
+    try:
         user = session.query(User).filter_by(id=user_id).first()
         if not user:
             user = User(id=user_id, username=username, full_name=full_name)
             session.add(user)
         
-        # 2. Get Config (Or create default)
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        if not config:
-            config = SystemConfig(id=1, check_in_points=10.0, check_in_limit=1)
-            session.add(config)
-            session.commit() # Save default config immediately
+        # Get Config
+        sys_conf = session.query(SystemConfig).filter_by(id=1).first()
+        if not sys_conf:
+            sys_conf = SystemConfig(id=1, check_in_points=10.0, check_in_limit=1)
+            session.add(sys_conf)
+            session.commit()
 
-        # 3. Check Date (Reset count if it's a new day)
+        # Check Date
         now = datetime.now()
         if user.last_check_in_date:
             if user.last_check_in_date.date() < now.date():
                 user.daily_check_in_count = 0
         
-        # 4. Check Limit
-        if user.daily_check_in_count >= config.check_in_limit:
-            return False, f"📅 您今天已经签到 {config.check_in_limit} 次了!", 0.0
+        # Check Limit
+        if user.daily_check_in_count >= sys_conf.check_in_limit:
+            return False, f"📅 您今天已经签到 {sys_conf.check_in_limit} 次了!", 0.0
         
-        # 5. Award Points
-        points_to_add = config.check_in_points
+        # Award
+        points_to_add = sys_conf.check_in_points
         user.points += points_to_add
         user.daily_check_in_count += 1
         user.last_check_in_date = now
@@ -148,48 +185,5 @@ def process_check_in(user_id: int, username: str, full_name: str):
     except Exception as e:
         print(f"Check-in Error: {e}")
         return False, "❌ System error.", 0.0
-    finally:
-        session.close()
-
-def set_check_in_config(points: float, limit: int):
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        if not config:
-            config = SystemConfig(id=1)
-            session.add(config)
-        
-        config.check_in_points = points
-        config.check_in_limit = limit
-        session.commit()
-        return True
-    finally:
-        session.close()
-
-def set_voucher_buy_status(enabled: bool):
-    """Admin: Toggles the ability to buy vouchers."""
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        if not config:
-            config = SystemConfig(id=1)
-            session.add(config)
-        
-        config.voucher_buy_enabled = enabled
-        session.commit()
-        return True
-    except Exception as e:
-        print(f"Error setting voucher status: {e}")
-        return False
-    finally:
-        session.close()
-
-def is_voucher_buy_enabled() -> bool:
-    """Checks if voucher buying is allowed."""
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        # Default to True if config doesn't exist yet
-        return config.voucher_buy_enabled if config else True
     finally:
         session.close()

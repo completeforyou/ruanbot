@@ -17,3 +17,7 @@ class SystemConfig(Base):
     check_in_limit = Column(Integer, default=1)
     voucher_buy_enabled = Column(Boolean, default=True)
     voucher_cost = Column(Integer, default=500)
+    invite_reward_points = Column(Float, default=20.0)
+    max_daily_points = Column(Integer, default=100)
+    spam_threshold = Column(Float, default=3.0)
+    spam_limit = Column(Integer, default=4)

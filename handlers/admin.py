@@ -98,21 +98,34 @@ async def show_voucher_menu(update: Update):
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_config_menu(update: Update):
-    session = Session()
-    config = session.query(SystemConfig).filter_by(id=1).first()
-    pts = config.check_in_points if config else 10.0
-    limit = config.check_in_limit if config else 1
-    session.close()
+    conf = economy.get_system_config()
 
     text = (
         f"⚙️ 系统配置\n\n"
         f"📅 签到奖励\n"
-        f"• 积分: `{pts}`\n"
-        f"• 每日限制: `{limit}`\n\n"
+        f"• 积分: `{conf['check_in_points']}`\n"
+        f"• 每日限制: `{conf['check_in_limit']}`\n\n"
+
+        f"🤝 邀请\n"
+        f"• 奖励: `{conf['invite_reward_points']}`\n\n"
+
+        f"🛡 防刷屏 (Anti-Spam)**\n"
+        f"• 阈值(秒): `{conf['spam_threshold']}`\n"
+        f"• 限制(条): `{conf['spam_limit']}`\n\n"
+
+        f"💰 经济\n"
+        f"• 每日上限: `{conf['max_daily_points']}` (参考值)\n"
     )
     keyboard = [
-        [InlineKeyboardButton("✏️ 编辑积分", callback_data="admin_set_cpts"),
-         InlineKeyboardButton("✏️ 编辑限制", callback_data="admin_set_clim")],
+        [InlineKeyboardButton("✏️ 签到积分", callback_data="admin_set_cpts"),
+         InlineKeyboardButton("✏️ 签到次数", callback_data="admin_set_clim")],
+
+        [InlineKeyboardButton("✏️ 邀请奖励", callback_data="admin_set_invite"),
+         InlineKeyboardButton("✏️ 每日上限", callback_data="admin_set_daily")],
+
+        [InlineKeyboardButton("✏️ 刷屏时间", callback_data="admin_set_sthr"),
+         InlineKeyboardButton("✏️ 刷屏条数", callback_data="admin_set_slim")], 
+
         [InlineKeyboardButton("📝 编辑欢迎消息", callback_data="admin_welcome_set")],
         [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
     ]
@@ -130,6 +143,10 @@ async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "admin_set_vcost": ("兑奖券所需积分", "integer"),
         "admin_set_cpts": ("签到积分", "float"),
         "admin_set_clim": ("每天可签到次数", "integer"),
+        "admin_set_invite": ("邀请奖励积分", "float"),
+        "admin_set_daily": ("每日获得积分上限", "integer"),
+        "admin_set_sthr": ("防刷屏判断时间 (秒)", "float"),
+        "admin_set_slim": ("防刷屏判断条数", "integer"),
     }
     
     s_type = query.data
@@ -159,21 +176,21 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             val = float(text)
             
-        # Save to DB
+        # --- LOGIC MAPPING ---
         if s_type == "admin_set_vcost":
-            economy.set_voucher_cost(val)
-        elif s_type in ["admin_set_cpts", "admin_set_clim"]:
-            # Need to fetch current other value to not overwrite it with default
-            session = Session()
-            config = session.query(SystemConfig).filter_by(id=1).first()
-            c_pts = config.check_in_points if config else 10.0
-            c_lim = config.check_in_limit if config else 1
-            session.close()
-            
-            if s_type == "admin_set_cpts":
-                economy.set_check_in_config(val, c_lim)
-            else:
-                economy.set_check_in_config(c_pts, val)
+            economy.update_system_config(voucher_cost=val)
+        elif s_type == "admin_set_cpts":
+            economy.update_system_config(check_in_points=val)
+        elif s_type == "admin_set_clim":
+            economy.update_system_config(check_in_limit=val)
+        elif s_type == "admin_set_invite":
+            economy.update_system_config(invite_reward_points=val)
+        elif s_type == "admin_set_daily":
+            economy.update_system_config(max_daily_points=val)
+        elif s_type == "admin_set_sthr":
+            economy.update_system_config(spam_threshold=val)
+        elif s_type == "admin_set_slim":
+            economy.update_system_config(spam_limit=val)
                 
         await update.message.reply_text("✅ 配置已更新", parse_mode='Markdown')
         
@@ -246,7 +263,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
 # Export the handler
 settings_conv_handler = ConversationHandler(
     entry_points=[
-        CallbackQueryHandler(start_setting, pattern="^admin_set_(vcost|cpts|clim)$")
+        CallbackQueryHandler(start_setting, pattern="^admin_set_")
     ],
     states={
         WAIT_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_setting)]

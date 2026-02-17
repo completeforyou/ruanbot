@@ -2,8 +2,7 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
-from services import antispam
-import config
+from services import antispam, economy
 
 async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -15,13 +14,18 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
     user = update.effective_user
     chat = update.effective_chat
+
+    # FETCH DYNAMIC SETTINGS
+    sys_config = economy.get_system_config()
+    limit = sys_config['spam_limit']
+    timeframe = sys_config['spam_threshold']
     
     # --- PHASE 2: ANTI-SPAM ---
     # Only run if content was safe
     is_spam = antispam.check_is_spamming(
         user.id, 
-        limit=config.SPAM_MESSAGE_LIMIT, 
-        timeframe=config.SPAM_THRESHOLD_SECONDS
+        limit=limit, 
+        timeframe=timeframe
     )
     
     if is_spam:

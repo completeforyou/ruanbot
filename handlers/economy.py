@@ -23,8 +23,8 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if antispam.is_shadow_muted(user.id):
         return # No points for bad admins!
 
-    # 4. Award Points (10% Chance)
-    CHANCE = 0.15
+    # 4. Award Points
+    CHANCE = 0.20
     roll = random.random()
     if roll < CHANCE:
         economy.add_points(user.id, 1.0)
