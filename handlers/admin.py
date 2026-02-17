@@ -1,9 +1,11 @@
 # handlers/admin.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.helpers import mention_html
 from utils.decorators import admin_only, private_chat_only
 from services import economy
 from database import Session, SystemConfig, Product
+from models.user import User
 from handlers import admin_products
 
 # --- MAIN PANEL ---
@@ -197,6 +199,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
     """
     args = context.args
     target_id = None
+    target_name = "用户"
     amount = None
 
     # Case 1: Reply to a message
@@ -223,7 +226,8 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if target_id and amount:
         economy.add_vouchers(target_id, amount)
-        await update.message.reply_text(f"✅ `{target_id}` 获得 {amount} 兑奖券", parse_mode='Markdown')
+        user_mention = mention_html(target_id, target_name)
+        await update.message.reply_text(f"✅ {user_mention} 获得 {amount} 兑奖券", parse_mode='Markdown')
     else:
         await update.message.reply_text(
             "用法:\n"
