@@ -204,7 +204,9 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Case 1: Reply to a message
     if update.message.reply_to_message:
-        target_id = update.message.reply_to_message.from_user.id
+        target_user = update.message.reply_to_message.from_user
+        target_id = target_user.id
+        target_name = target_user.full_name
         try: 
             amount = int(args[0])
         except: 
@@ -215,6 +217,11 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
         try:
             if args[0].isdigit(): 
                 target_id = int(args[0])
+                session = Session()
+                db_user = session.query(User).filter_by(id=target_id).first()
+                if db_user:
+                    target_name = db_user.full_name
+                session.close()
             else: 
                 # Resolving username requires database lookup or cache, 
                 # but ID is safer/easier for this scope.
