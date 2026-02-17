@@ -3,7 +3,7 @@ import logging
 import config
 from database import init_db
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ApplicationHandlerStop
 from telegram.request import HTTPXRequest
 from handlers import register_handlers
 from handlers import moderation, economy
@@ -24,6 +24,11 @@ async def global_message_handler(update, context):
         return 
     await economy.track_activity(update, context)
 
+async def priority_spam_check(update: Update, context):
+    is_spam = await moderation.check_spam(update, context)
+    if is_spam:
+        raise ApplicationHandlerStop # Stop processing this update immediately
+
 if __name__ == '__main__':
     # Initialize Database
     init_db()
@@ -35,6 +40,8 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(config.TOKEN).request(req).build()
 
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
+
+    application.add_handler(MessageHandler(filters.ALL, priority_spam_check), group=-1)
     
     # --- Register Handlers ---
     register_handlers(application)

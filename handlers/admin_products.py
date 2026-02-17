@@ -1,4 +1,5 @@
 # handlers/admin_products.py
+from multiprocessing import context
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from database import Session, Product
@@ -6,7 +7,6 @@ from utils.decorators import admin_only, private_chat_only
 
 # Steps
 TYPE, NAME, COST, CHANCE, STOCK = range(5)
-product_cache = {}
 
 def get_cancel_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]])
@@ -16,10 +16,9 @@ def get_cancel_kb():
 @private_chat_only
 async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # This can be triggered by command /add_product or button
-    user_id = update.effective_user.id
-    product_cache[user_id] = {}
+    context.user_data['new_product'] = {}
     
-    # Ask Type - ADDED SCRATCHER OPTION
+    # Ask Type
     keyboard = [
         [InlineKeyboardButton("🛒 积分商店 (100% 获得)", callback_data="type_shop")],
         [InlineKeyboardButton("🃏 积分刮刮乐 (概率获得)", callback_data="type_scratcher")], 
@@ -40,7 +39,7 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     p_type = query.data.split('_')[1] # 'shop', 'scratcher', or 'lottery'
-    product_cache[query.from_user.id]['type'] = p_type
+    context.user_data['new_product']['type'] = p_type
     
     type_names = {
         'shop': "🛒 积分商店",
@@ -56,8 +55,8 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return NAME
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    product_cache[update.effective_user.id]['name'] = update.message.text
-    p_type = product_cache[update.effective_user.id]['type']
+    context.user_data['new_product']['name'] = update.message.text
+    p_type = context.user_data['new_product']['type']
     
     # Determine Currency based on type
     # Lottery uses Vouchers, Shop and Scratcher use Points
@@ -69,9 +68,9 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         cost = float(update.message.text)
-        product_cache[update.effective_user.id]['cost'] = cost
-        
-        p_type = product_cache[update.effective_user.id]['type']
+        context.user_data['new_product']['cost'] = cost
+       
+        p_type = context.user_data['new_product']['type']
         
         # If it's a game of chance (Lottery OR Scratcher), ask for probability
         if p_type in ['lottery', 'scratcher']:
@@ -79,7 +78,7 @@ async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return CHANCE
         else:
             # Shop items have 100% chance, skip to stock
-            product_cache[update.effective_user.id]['chance'] = 1.0
+            context.user_data['new_product']['chance'] = 1.0            
             await update.message.reply_text("📦 设置商品库存 (0-999):", reply_markup=get_cancel_kb())
             return STOCK
             
@@ -91,7 +90,7 @@ async def receive_chance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         chance = float(update.message.text)
         if not (0 <= chance <= 100): raise ValueError
-        product_cache[update.effective_user.id]['chance'] = chance / 100.0
+        context.user_data['new_product']['chance'] = chance / 100.0
         await update.message.reply_text("📦 设置商品库存 (0-999):", reply_markup=get_cancel_kb())
         return STOCK
     except ValueError:
@@ -101,7 +100,7 @@ async def receive_chance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         stock = int(update.message.text)
-        data = product_cache[update.effective_user.id]
+        data = context.user_data['new_product']
         
         session = Session()
         new_prod = Product(

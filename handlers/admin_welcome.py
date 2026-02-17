@@ -6,7 +6,6 @@ from utils.decorators import admin_only, private_chat_only
 
 # Conversation states
 MEDIA, TEXT, BUTTONS = range(3)
-_cache = {}
 
 def get_cancel_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="admin_welcome_cancel")]])
@@ -14,7 +13,7 @@ def get_cancel_kb():
 @admin_only
 @private_chat_only
 async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    _cache[update.effective_user.id] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
+    context.user_data['welcome_setup'] = {'media_id': None, 'media_type': None, 'text': '', 'buttons': []}
     
     text_msg = (
         "📝 欢迎消息设置\n\n"
@@ -33,19 +32,19 @@ async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MEDIA
 
 async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    data = context.user_data.get('welcome_setup')
     
     if update.message.text == '/skip':
         pass 
     elif update.message.photo:
-        _cache[user_id]['media_id'] = update.message.photo[-1].file_id
-        _cache[user_id]['media_type'] = 'photo'
+        data['media_id'] = update.message.photo[-1].file_id
+        data['media_type'] = 'photo'
     elif update.message.video:
-        _cache[user_id]['media_id'] = update.message.video.file_id
-        _cache[user_id]['media_type'] = 'video'
+        data['media_id'] = update.message.video.file_id
+        data['media_type'] = 'video'
     elif update.message.animation:
-        _cache[user_id]['media_id'] = update.message.animation.file_id
-        _cache[user_id]['media_type'] = 'animation'
+        data['media_id'] = update.message.animation.file_id
+        data['media_type'] = 'animation'
     else:
         await update.message.reply_text("❌ 请发送照片,视频或GIF,或输入 /skip.")
         return MEDIA
@@ -58,7 +57,7 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TEXT
 
 async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    _cache[update.effective_user.id]['text'] = update.message.text
+    context.user_data['welcome_setup']['text'] = update.message.text
     
     await update.message.reply_text(
         "3: 添加自定义URL按钮。\n"
@@ -70,18 +69,17 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return BUTTONS
 
 async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     text_input = update.message.text
+    data = context.user_data.get('welcome_setup')
     
     if text_input != '/skip':
         lines = text_input.split('\n')
         for line in lines:
             if ':' in line:
                 parts = line.split(':', 1)
-                _cache[user_id]['buttons'].append([parts[0].strip(), parts[1].strip()])
+                data['buttons'].append([parts[0].strip(), parts[1].strip()])
 
     # Save to Database
-    data = _cache[user_id]
     session = Session()
     
     config = session.query(WelcomeConfig).filter_by(id=1).first()
