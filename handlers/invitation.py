@@ -69,78 +69,69 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.chat_member:
         return
 
-    # Debug details
-    old = update.chat_member.old_chat_member
-    new = update.chat_member.new_chat_member
-    user = new.user
+    # 1. Extract Basic Info
+    new_member = update.chat_member.new_chat_member
+    old_member = update.chat_member.old_chat_member
+    user = new_member.user
     invite_used = update.chat_member.invite_link
     
-    logger.info(f"🔍 [TRACE] Member Update: {user.first_name} ({user.id}) | {old.status} -> {new.status}")
+    logger.info(f"🔍 [TRACE] Update for: {user.first_name} (ID: {user.id})")
+    logger.info(f"   Status: {old_member.status} -> {new_member.status}")
 
-    # 1. Determine Status Change
-    result = _extract_status_change(update.chat_member)
-    if result is None: return
-    was_member, is_member = result
-    
-    # 2. DECISION LOGIC
-    should_process = False
-
-    # Condition A: Normal Join (Left -> Member)
-    if not was_member and is_member:
-        should_process = True
-        
-    # Condition B: "Restricted" Join with Valid Link (Fix for your logs)
-    # If they used a link AND they are now inside the group (is_member), we process it.
-    # The database check later will prevent duplicates if they truly have been referred before.
-    elif invite_used and is_member:
-        logger.info("   ⚠️ Non-standard join (e.g. Restricted->Restricted) detected WITH Invite Link. Processing.")
-        should_process = True
-
-    if not should_process:
-        logger.info("   ❌ Logic: Ignored (Already member or Left group, and no link used)")
-        return
-
-    # 3. Handle Invite Link
+    # 2. Check for Invite Link
+    # This is the most critical check. 
     if not invite_used:
-        logger.warning("   ⚠️ Joined but no invite link detected. (Public link?)")
+        # If no link is in the update, we cannot track who invited them.
+        logger.info("   ℹ️ No invite link detected in this update. (Ignored)")
         return
 
     link_url = invite_used.invite_link
-    logger.info(f"   🔗 Link detected: {link_url}")
-    
-    # 4. Lookup in Database
+    logger.info(f"   🔗 Invite Link Found: {link_url}")
+
+    # 3. Status Safety Check
+    # We generally only want to reward if they are IN the group now.
+    # 'left' or 'kicked' means they are gone.
+    if new_member.status in ['left', 'kicked']:
+        logger.info("   ❌ User left or was kicked. No reward.")
+        return
+
+    # If we are here, we have a LINK and the user is PRESENT.
+    # We proceed regardless of whether it was 'restricted->restricted' or 'left->member'.
+    await process_referral(update, context, user, link_url)
+
+async def process_referral(update, context, user, link_url):
     session = Session()
     try:
+        # A. Find the link owner
         link_record = session.query(InviteLink).filter_by(link=link_url).first()
-        
         if not link_record:
             logger.warning(f"   ⚠️ Link not found in DB: {link_url}")
             return
 
         inviter_id = link_record.creator_id
 
-        # Prevent Self-Referral
+        # B. Self-Referral Check
         if inviter_id == user.id:
             logger.info("   ⚠️ Self-referral ignored.")
             return 
 
-        # 5. Check Duplicate Referral (The Final Guard)
+        # C. Duplicate Check
         exists = session.query(Referral).filter_by(
             inviter_id=inviter_id, 
             invited_user_id=user.id
         ).first()
 
         if exists:
-            logger.info("   ⚠️ Referral already exists in DB. Skipping reward.")
+            logger.info(f"   ⚠️ Referral already exists for {inviter_id} -> {user.id}")
             return
         
-        # 6. Save & Reward
+        # D. Success: Save & Reward
         logger.info(f"   ✅ SUCCESS! Crediting {inviter_id} for inviting {user.id}")
         
         new_ref = Referral(inviter_id=inviter_id, invited_user_id=user.id)
         session.add(new_ref)
         session.commit()
-        session.close() # Close DB session before economy call
+        session.close() # Close safely before economy call
         
         # Award Points
         economy.add_points(inviter_id, float(INVITE_REWARD_POINTS))
@@ -155,25 +146,6 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        logger.error(f"   ❌ Error: {e}")
+        logger.error(f"   ❌ Referral Error: {e}")
         session.rollback()
         session.close()
-
-def _extract_status_change(chat_member_update: ChatMemberUpdated):
-    status_change = chat_member_update.difference().get("status")
-    old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
-
-    if status_change is None: return None
-
-    old_status, new_status = status_change
-    
-    # Helper to define what "Member" means
-    was_member = old_status in [
-        ChatMember.MEMBER, ChatMember.OWNER, ChatMember.ADMINISTRATOR,
-    ] or (old_status == ChatMember.RESTRICTED and old_is_member is True)
-
-    is_member = new_status in [
-        ChatMember.MEMBER, ChatMember.OWNER, ChatMember.ADMINISTRATOR,
-    ] or (new_status == ChatMember.RESTRICTED and new_is_member is True)
-
-    return was_member, is_member
