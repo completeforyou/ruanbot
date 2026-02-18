@@ -1,6 +1,6 @@
 # services/economy.py
 from database import Session, SystemConfig, User
-from sqlalchemy import update
+from sqlalchemy import update, desc
 from datetime import datetime
 
 def get_or_create_user(user_id: int, username: str, full_name: str):
@@ -40,6 +40,7 @@ def increment_stats(user_id: int):
     try:
         stmt = update(User).where(User.id == user_id).values(
             msg_count_total=User.msg_count_total + 1,
+            msg_count_daily=User.msg_count_daily + 1,
             last_msg_date=datetime.utcnow()
         )
         session.execute(stmt)
@@ -82,6 +83,38 @@ def add_vouchers(user_id: int, amount: int):
             print(f"❌ Failed to add vouchers: User {user_id} not found.")
     except Exception as e:
         print(f"DB Error: {e}")
+    finally:
+        session.close()
+
+def reset_daily_msg_counts(context=None):
+    """
+    Resets msg_count_daily for ALL users to 0. 
+    Can be run as a scheduled job.
+    """
+    session = Session()
+    try:
+        session.query(User).update({User.msg_count_daily: 0})
+        session.commit()
+        print("🔄 Daily message counts have been reset.")
+    except Exception as e:
+        print(f"❌ Error resetting daily counts: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+def get_leaderboard(sort_by='points', limit=30):
+    """
+    Fetches top users sorted by 'points' or 'daily_msg'.
+    Returns a list of User objects.
+    """
+    session = Session()
+    try:
+        if sort_by == 'daily_msg':
+            users = session.query(User).order_by(desc(User.msg_count_daily)).limit(limit).all()
+        else:
+            # Default to points
+            users = session.query(User).order_by(desc(User.points)).limit(limit).all()
+        return users
     finally:
         session.close()
 

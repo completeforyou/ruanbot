@@ -6,9 +6,10 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ApplicationHandlerStop
 from telegram.request import HTTPXRequest
 from handlers import register_handlers
-from handlers import moderation, economy
+from handlers import moderation, economy as economy_handler
 from services.antispam import cleanup_cache
-from services import cleaner
+from services import cleaner, economy as economy_service
+from datetime import time
 
 # Logging Setup
 logging.basicConfig(
@@ -25,7 +26,7 @@ async def global_message_handler(update, context):
     if is_spam:
         return
     # 2. Track Activity
-    await economy.track_activity(update, context)
+    await economy_handler.track_activity(update, context)
     # 3. Check for Media Deletion
     await cleaner.schedule_media_deletion(update, context)
 
@@ -45,6 +46,8 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(config.TOKEN).request(req).build()
 
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
+
+    application.job_queue.run_daily(economy_service.reset_daily_msg_counts, time=time(hour=16, minute=0))
 
     application.add_handler(MessageHandler(filters.ALL, priority_spam_check), group=-1)
     

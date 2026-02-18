@@ -1,6 +1,6 @@
 # handlers/__init__.py
 from telegram.ext import MessageHandler, CommandHandler, CallbackQueryHandler, filters, ChatMemberHandler
-from . import economy, admin, admin_products, redemption, verification, admin_welcome, shop, scratchers, invitation
+from . import economy, admin, admin_products, redemption, verification, admin_welcome, shop, scratchers, invitation, leaderboard
 
 def register_handlers(application):
     """
@@ -29,11 +29,13 @@ def register_handlers(application):
     # 4. Economy & Games
     application.add_handler(MessageHandler(filters.Regex(r'^专属链接$'), invitation.generate_invite_link))
     application.add_handler(MessageHandler(filters.Regex(r'^积分$'), economy.check_balance))
+    application.add_handler(MessageHandler(filters.Regex(r'^排名$'), leaderboard.show_leaderboard))
     application.add_handler(MessageHandler(filters.Regex(r'(?i)^(签到|checkin)$'), economy.handle_check_in_request))
     application.add_handler(MessageHandler(filters.Regex(r'^抽奖$'), redemption.open_lottery_menu))
     application.add_handler(MessageHandler(filters.Regex(r'^商店$'), shop.open_shop_menu))
     application.add_handler(MessageHandler(filters.Regex(r'^刮刮乐$'), scratchers.open_scratcher_menu))
 
+    application.add_handler(CallbackQueryHandler(leaderboard.leaderboard_callback, pattern="^lb_"))
     application.add_handler(CallbackQueryHandler(redemption.handle_lottery_draw, pattern="^lottery_draw_"))
     application.add_handler(CallbackQueryHandler(shop.handle_shop_buy, pattern="^shop_buy"))
     application.add_handler(CallbackQueryHandler(scratchers.handle_scratcher_play, pattern="^scratcher_play_"))

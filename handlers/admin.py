@@ -82,7 +82,7 @@ async def show_shop_menu(update: Update):
 async def show_voucher_menu(update: Update):
     is_enabled = economy.is_voucher_buy_enabled()
     current_cost = economy.get_voucher_cost()
-    status_icon = "✅ 关闭" if is_enabled else "🔴 开启"
+    status_icon = "✅ 开启" if is_enabled else "🔴 关闭"
     toggle_btn_text = "关闭购买模式" if is_enabled else "开启购买模式"
     
     text = (
@@ -161,10 +161,10 @@ async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['setting_type'] = s_type
     context.user_data['setting_dtype'] = dtype
     
-    kb = [[InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_op")]]
+    kb = [[InlineKeyboardButton("🔙 返回", callback_data="admin_home")]]
     
     await query.edit_message_text(
-        f"✏️ 设置名称: {name}**\n\n"
+        f"✏️ 设置名称: {name}\n\n"
         f"选择新的值:",
         reply_markup=InlineKeyboardMarkup(kb),
         parse_mode='Markdown'
