@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.helpers import mention_html
 from utils.decorators import admin_only, private_chat_only
 from services import economy
-from database import Session, SystemConfig, Product
+from database import Session, Product
 from models.user import User
 from handlers import admin_products
 
@@ -115,6 +115,9 @@ async def show_config_menu(update: Update):
 
         f"💰 经济\n"
         f"• 每日上限: `{conf['max_daily_points']}` (参考值)\n"
+
+        f"🗑 媒体自删 (Media Auto-Delete)\n"
+        f"• 时间: `{conf['media_delete_time']} 秒` (0 = 关闭)\n"
     )
     keyboard = [
         [InlineKeyboardButton("✏️ 签到积分", callback_data="admin_set_cpts"),
@@ -124,7 +127,9 @@ async def show_config_menu(update: Update):
          InlineKeyboardButton("✏️ 每日上限", callback_data="admin_set_daily")],
 
         [InlineKeyboardButton("✏️ 刷屏时间", callback_data="admin_set_sthr"),
-         InlineKeyboardButton("✏️ 刷屏条数", callback_data="admin_set_slim")], 
+         InlineKeyboardButton("✏️ 刷屏条数", callback_data="admin_set_slim")],
+
+        [InlineKeyboardButton("✏️ 设置媒体自删时间", callback_data="admin_set_mdel")],
 
         [InlineKeyboardButton("📝 编辑欢迎消息", callback_data="admin_welcome_set")],
         [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]
@@ -147,6 +152,7 @@ async def start_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "admin_set_daily": ("每日获得积分上限", "integer"),
         "admin_set_sthr": ("防刷屏判断时间 (秒)", "float"),
         "admin_set_slim": ("防刷屏判断条数", "integer"),
+        "admin_set_mdel": ("媒体自动删除时间 (秒, 0=关闭)", "integer")
     }
     
     s_type = query.data
@@ -191,6 +197,8 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             economy.update_system_config(spam_threshold=val)
         elif s_type == "admin_set_slim":
             economy.update_system_config(spam_limit=val)
+        elif s_type == "admin_set_mdel":
+            economy.update_system_config(media_delete_time=val)
                 
         await update.message.reply_text("✅ 配置已更新", parse_mode='Markdown')
         

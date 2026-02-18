@@ -104,7 +104,8 @@ def get_system_config():
             'invite_reward_points': config.invite_reward_points,
             'max_daily_points': config.max_daily_points,
             'spam_threshold': config.spam_threshold,
-            'spam_limit': config.spam_limit
+            'spam_limit': config.spam_limit,
+            'media_delete_time': getattr(config, 'media_delete_time', 60)
         }
     finally:
         session.close()

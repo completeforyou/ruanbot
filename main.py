@@ -8,6 +8,7 @@ from telegram.request import HTTPXRequest
 from handlers import register_handlers
 from handlers import moderation, economy
 from services.antispam import cleanup_cache
+from services import cleaner
 
 # Logging Setup
 logging.basicConfig(
@@ -19,10 +20,14 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 async def global_message_handler(update, context):
+    # 1. Check Spam
     is_spam = await moderation.check_spam(update, context)
     if is_spam:
-        return 
+        return
+    # 2. Track Activity
     await economy.track_activity(update, context)
+    # 3. Check for Media Deletion
+    await cleaner.schedule_media_deletion(update, context)
 
 async def priority_spam_check(update: Update, context):
     is_spam = await moderation.check_spam(update, context)
@@ -47,8 +52,7 @@ if __name__ == '__main__':
     register_handlers(application)
     
     # Global Message Handler
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), global_message_handler))
-    application.add_handler(MessageHandler(filters.CAPTION, global_message_handler))
+    application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), global_message_handler))
     
     print("Bot is running...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
