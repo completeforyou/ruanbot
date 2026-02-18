@@ -144,7 +144,7 @@ async def start_remove_product(update: Update, context: ContextTypes.DEFAULT_TYP
     if not products:
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")]]
         await update.callback_query.edit_message_text(
-            "🗑 删除商品\n\nNo products found.", 
+            "🗑 删除商品\n\n现无商品", 
             reply_markup=InlineKeyboardMarkup(keyboard), 
             parse_mode='Markdown'
         )

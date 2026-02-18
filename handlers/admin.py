@@ -109,14 +109,14 @@ async def show_config_menu(update: Update):
         f"🤝 邀请\n"
         f"• 奖励: `{conf['invite_reward_points']}`\n\n"
 
-        f"🛡 防刷屏 (Anti-Spam)**\n"
+        f"🛡 防刷屏 \n"
         f"• 阈值(秒): `{conf['spam_threshold']}`\n"
         f"• 限制(条): `{conf['spam_limit']}`\n\n"
 
         f"💰 经济\n"
         f"• 每日上限: `{conf['max_daily_points']}`\n"
 
-        f"🗑 媒体自删 (Media Auto-Delete)\n"
+        f"🗑 媒体自删 \n"
         f"• 时间: `{conf['media_delete_time']} 秒` (0 = 关闭)\n"
     )
     keyboard = [
