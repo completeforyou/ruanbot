@@ -114,7 +114,7 @@ async def show_config_menu(update: Update):
         f"• 限制(条): `{conf['spam_limit']}`\n\n"
 
         f"💰 经济\n"
-        f"• 每日上限: `{conf['max_daily_points']}` (参考值)\n"
+        f"• 每日上限: `{conf['max_daily_points']}`\n"
 
         f"🗑 媒体自删 (Media Auto-Delete)\n"
         f"• 时间: `{conf['media_delete_time']} 秒` (0 = 关闭)\n"
