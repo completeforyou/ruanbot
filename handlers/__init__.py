@@ -7,7 +7,7 @@ def register_handlers(application):
     Registers all bot handlers in the correct priority order.
     """
     # 1. Verification & Welcome (High Priority)
-    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
+    application.add_handler(ChatMemberHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, verification.welcome_new_member))
     application.add_handler(CallbackQueryHandler(verification.verify_button_click, pattern="^verify_"))
 
     application.add_handler(ChatMemberHandler(invitation.track_join_event, ChatMemberHandler.CHAT_MEMBER))
