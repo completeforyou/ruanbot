@@ -2,7 +2,7 @@
 import random
 from telegram import Update
 from telegram.ext import ContextTypes
-from services import economy, antispam
+from services import economy, antispam, cleaner
 
 async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -56,11 +56,22 @@ async def handle_check_in_request(update: Update, context: ContextTypes.DEFAULT_
     
     success, msg, points = economy.process_check_in(user.id, user.username, user.first_name)
     
+    reply_msg = None
+    
     if success:
-        await update.message.reply_text(
+        reply_msg = await update.message.reply_text(
             f"{msg}\n💰 获得: {int(points)} 积分!",
             parse_mode='Markdown'
         )
     else:
         # Send failure message (Already checked in)
-        await update.message.reply_text(msg)
+        reply_msg = await update.message.reply_text(msg)
+        
+    # MODIFIED: Schedule auto-delete after 20 seconds
+    if reply_msg:
+        context.job_queue.run_once(
+            cleaner.delete_message_job,
+            20,
+            data={'chat_id': reply_msg.chat_id, 'message_id': reply_msg.message_id},
+            name=f"del_checkin_{reply_msg.chat_id}_{reply_msg.message_id}"
+        )

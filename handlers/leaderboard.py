@@ -102,7 +102,9 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     keyboard.append(nav_row)
     
     # Refresh/Close
-    keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
+    # MODIFIED: Only show Close button in Private Chats
+    if update.effective_chat.type == 'private':
+        keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
