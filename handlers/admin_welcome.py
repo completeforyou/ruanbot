@@ -20,14 +20,16 @@ async def set_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "1: 发送一张照片、视频或GIF以附加到欢迎消息。\n\n"
         "(输入 /skip 跳过此步骤, 仅使用文本欢迎消息)"
     )
+    
+    # Use the cancel button keyboard
+    kb = get_cancel_kb()
 
     # Handle if clicked from Admin Panel (Callback) vs Command
     if update.callback_query:
         await update.callback_query.answer()
-        # Send a NEW message because we can't upload media to an existing text-only message easily later
-        await update.callback_query.message.reply_text(text_msg, parse_mode='Markdown')
+        await update.callback_query.message.reply_text(text_msg, reply_markup=kb, parse_mode='Markdown')
     else:
-        await update.message.reply_text(text_msg, parse_mode='Markdown')
+        await update.message.reply_text(text_msg, reply_markup=kb, parse_mode='Markdown')
         
     return MEDIA
 
@@ -46,12 +48,13 @@ async def receive_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data['media_id'] = update.message.animation.file_id
         data['media_type'] = 'animation'
     else:
-        await update.message.reply_text("❌ 请发送照片,视频或GIF,或输入 /skip.")
+        await update.message.reply_text("❌ 请发送照片,视频或GIF,或输入 /skip.", reply_markup=get_cancel_kb())
         return MEDIA
 
     await update.message.reply_text(
         "2: 发送欢迎消息的文本\n\n"
         "💡 提示: 在文本中使用 `{user}` 来标记用户\n",
+        reply_markup=get_cancel_kb(),
         parse_mode='Markdown'
     )
     return TEXT
@@ -64,6 +67,7 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "格式: `按钮名称 : https://link.com`\n"
         "每行一个.\n\n"
         "*(或输入 /skip)*",
+        reply_markup=get_cancel_kb(),
         parse_mode='Markdown'
     )
     return BUTTONS
@@ -99,7 +103,12 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚫 设置已取消.")
+    msg = "🚫 设置已取消."
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(msg)
+    else:
+        await update.message.reply_text(msg)
     return ConversationHandler.END
 
 welcome_conv_handler = ConversationHandler(
@@ -112,6 +121,8 @@ welcome_conv_handler = ConversationHandler(
         TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
         BUTTONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_buttons), CommandHandler('skip', receive_buttons)],
     },
-    fallbacks=[CommandHandler('cancel', cancel)]
-    # Removed per_message=False to fix warning
+    fallbacks=[
+        CommandHandler('cancel', cancel),
+        CallbackQueryHandler(cancel, pattern="^admin_welcome_cancel$")
+    ]
 )

@@ -200,11 +200,12 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif s_type == "admin_set_mdel":
             economy.update_system_config(media_delete_time=val)
                 
-        await update.message.reply_text("✅ 配置已更新", parse_mode='Markdown')
-        
-        # Return to menu prompt (Admin can click /admin or buttons)
-        await update.message.reply_text("输入 /admin 控制版面")
-        return ConversationHandler.END
+        keyboard = [[InlineKeyboardButton("🔙 返回控制面板", callback_data="admin_home")]]
+        await update.message.reply_text(
+            "✅ 配置已更新", 
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
         
     except ValueError:
         await update.message.reply_text("❌ 无效格式。请输入一个数字.")
@@ -213,6 +214,13 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer("取消操作")
     await update.callback_query.edit_message_text("🚫 操作已取消")
+    return ConversationHandler.END
+
+async def back_to_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Exits the conversation cleanly and returns to the admin panel.
+    """
+    await admin_panel(update, context)
     return ConversationHandler.END
 
 @admin_only
@@ -278,6 +286,7 @@ settings_conv_handler = ConversationHandler(
     },
     fallbacks=[
         CallbackQueryHandler(cancel_op, pattern="^admin_cancel_op$"),
+        CallbackQueryHandler(back_to_home, pattern="^admin_home$"),
         MessageHandler(filters.COMMAND, cancel_op)
     ]
 )
