@@ -109,14 +109,24 @@ def get_leaderboard(sort_by='points', limit=30):
     """
     session = Session()
     try:
-        if sort_by == 'daily_msg':
+        if sort_by in ['daily_msg', 'msg']:
             users = session.query(User).order_by(desc(User.msg_count_daily)).limit(limit).all()
         else:
             # Default to points
             users = session.query(User).order_by(desc(User.points)).limit(limit).all()
-        return users
+        
+        # Convert to dictionary immediately to prevent "Detached Instance" errors
+        results = []
+        for u in users:
+            results.append({
+                'full_name': u.full_name,
+                'points': u.points,
+                'msg_count_daily': u.msg_count_daily
+            })
+        return results
     finally:
         session.close()
+        
 
 def get_system_config():
     """Returns a dictionary of all system settings."""

@@ -34,8 +34,8 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     """
     Generates the text and keyboard, then sends or edits the message.
     """
-    # 1. Fetch Data
-    users = economy.get_leaderboard(sort_by=sort_by if sort_by == 'msg' else 'daily_msg' if sort_by == 'msg' else 'points', limit=MAX_ITEMS)
+    # 1. Fetch Data (Passes 'msg' or 'points' directly)
+    users = economy.get_leaderboard(sort_by=sort_by, limit=MAX_ITEMS)
     
     # Handle empty DB
     if not users:
@@ -52,7 +52,6 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     page_users = users[start_idx:end_idx]
     
     # 3. Build Text
-    # We use <b> for title and <code> for the list to ensure alignment
     title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 今日活跃榜"
     text = f"<b>{title} (Top {MAX_ITEMS})</b>\n"
     text += "━━━━━━━━━━━━━━\n"
@@ -62,44 +61,39 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     for i, user in enumerate(page_users):
         rank = rank_start + i
         
-        # Name Processing: Truncate to 6 chars to keep alignment consistent
-        name = user.full_name if user.full_name else "User"
-        name = name.replace("<", "").replace(">", "") # Sanitize HTML
+        # CHANGED: Access dictionary keys instead of object attributes
+        raw_name = user['full_name'] if user['full_name'] else "User"
+        name = raw_name.replace("<", "").replace(">", "") # Sanitize HTML
         if len(name) > 6:
             name = name[:5] + "…"
         
-        # Decoration Logic (Custom Emojis)
+        # Decoration Logic
         if rank == 1:
             medal = "🥇"
-            suffix = "🐲" # Dragon
+            suffix = "🐲"
         elif rank == 2:
             medal = "🥈"
-            suffix = "🐮" # Cow
+            suffix = "🐮"
         elif rank == 3:
             medal = "🥉"
-            suffix = "🚰" # Water (as requested)
+            suffix = "🚰"
         else:
-            medal = "  " # 2 spaces to match medal width roughly
-            suffix = "🌟" # Star for 4th+
+            medal = "  "
+            suffix = "🌟"
 
         # Value Logic
         if sort_by == 'points':
-            val = int(user.points)
+            val = int(user['points'])
             unit = "积分"
         else:
-            val = user.msg_count_daily
+            val = user['msg_count_daily']
             unit = "条"
 
         # Format Construction
-        #  Rank & Medal
-        line = f"{rank}.{medal}"
-        
-        # Value & Suffix
-        line += f"{val}{unit}{suffix}" + (" " * 5) # Spacer to help align names
-        # Name & Spacing
+        line = f"第{rank}名{medal}"
+        line += f"{val}{unit}{suffix}"+ (" " * 5)
         line += f"{name:<8}"
         
-        # Wrap in <code> to preserve spaces
         text += f"<code>{line}</code>\n"
             
     text += "━━━━━━━━━━━━━━\n"
@@ -113,9 +107,9 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     if page > 0:
         nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"lb_{sort_by}_{page-1}"))
     else:
-        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore")) # Spacer
+        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
         
-    # Toggle Button (Middle)
+    # Toggle Button
     if sort_by == 'points':
         nav_row.append(InlineKeyboardButton("🔄 看活跃", callback_data=f"lb_msg_0"))
     else:
@@ -125,12 +119,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     if end_idx < len(users):
         nav_row.append(InlineKeyboardButton("➡️", callback_data=f"lb_{sort_by}_{page+1}"))
     else:
-        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore")) # Spacer
-        
-    keyboard.append(nav_row)
-    
-    # Refresh/Close
-    keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
+        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
