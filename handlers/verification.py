@@ -83,26 +83,32 @@ def _extract_status_change(chat_member_update):
     Helper to determine if the user joined.
     Returns (was_member, is_member) or None.
     """
+    # Use difference() only to detect change, but use OBJECTS for values
     status_change = chat_member_update.difference().get("status")
-    old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
-
+    
     if status_change is None:
         return None
 
     old_status, new_status = status_change
     
-    # Define what counts as "Being in the group"
+    # Get the actual objects
+    old_member = chat_member_update.old_chat_member
+    new_member = chat_member_update.new_chat_member
+
+    # Define "Was Member" based on OLD status
     was_member = old_status in [
         ChatMember.MEMBER,
         ChatMember.OWNER,
         ChatMember.ADMINISTRATOR,
-    ] or (old_status == ChatMember.RESTRICTED and old_is_member is True)
+    ] or (old_status == ChatMember.RESTRICTED and old_member.is_member is True)
+
+    # Define "Is Member" based on NEW status
 
     is_member = new_status in [
         ChatMember.MEMBER,
         ChatMember.OWNER,
         ChatMember.ADMINISTRATOR,
-    ] or (new_status == ChatMember.RESTRICTED and new_is_member is True)
+    ] or (new_status == ChatMember.RESTRICTED and new_member.is_member is True)
 
     return was_member, is_member
 
