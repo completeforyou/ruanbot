@@ -97,7 +97,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
         # 2. Name & Spacing
         # We pad the name to 8 characters length to align the right side
         # standard 10 spaces requested + alignment padding
-        line += f"{name:<8}" + (" " * 10)
+        line += f"{name:<8}" + (" " * 6)
         
         # 3. Value & Suffix
         line += f"{val}{unit}{suffix}"
