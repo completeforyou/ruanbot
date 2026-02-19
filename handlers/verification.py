@@ -6,53 +6,86 @@ from telegram.ext import ContextTypes
 from services import verification, cleaner
 from database import Session, User, WelcomeConfig
 
+def _is_effective_member(member_obj) -> bool:
+    """
+    Returns True if the user is considered a member of the group
+    (Member, Admin, Owner, or Restricted-but-still-in-group).
+    """
+    if member_obj.status in [ChatMember.MEMBER, ChatMember.OWNER, ChatMember.ADMINISTRATOR]:
+        return True
+    if member_obj.status == ChatMember.RESTRICTED:
+        # Restricted members are still "in" the group if is_member is True
+        return member_obj.is_member
+    return False
+
+def _extract_status_change(chat_member_update):
+    """
+    Determines if a user has just joined the group.
+    Returns (was_member, is_member).
+    """
+    # 1. Get the old and new member objects directly
+    old_member = chat_member_update.old_chat_member
+    new_member = chat_member_update.new_chat_member
+    
+    # 2. Determine membership status using our helper
+    was_member = _is_effective_member(old_member)
+    is_member = _is_effective_member(new_member)
+
+    return was_member, is_member
+
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Triggered when a user status changes to MEMBER.
     Sends the strict math captcha.
     """
-    # 1. Parse Update from ChatMemberHandler
-    result = _extract_status_change(update.chat_member)
-    if result is None:
+    # 1. Validate Update
+    if not update.chat_member:
         return
 
-    was_member, is_member = result
+    # 2. Check Logic (Joined vs Left)
+    was_member, is_member = _extract_status_change(update.chat_member)
+    
+    # We only care if they WEREN'T a member, and now ARE a member.
+    if not (not was_member and is_member):
+        return
+
     new_member = update.chat_member.new_chat_member
     user = new_member.user
     chat = update.effective_chat
 
-    # 2. Filter: Only run if they weren't a member before, and are one now.
-    #    Also ignore Bots.
+    # Ignore Bots
     if user.is_bot:
         return
-        
-    if not was_member and is_member:
-        # 3. Restrict (Mute)
-        try:
-            await chat.restrict_member(
-                user.id, 
-                permissions=ChatPermissions(can_send_messages=False)
-            )
-        except Exception as e:
-            print(f"⚠️ Verification Error: Could not mute {user.full_name}. Is Bot Admin? {e}")
-            return
 
-        # 4. Generate Math Challenge
-        question_text, answers = verification.generate_math_question(user.id)
+    # 3. Restrict (Mute)
+    # CRITICAL FIX: We use try/except/pass so logic continues even if mute fails
+    # (e.g., if the user is an Admin/Owner rejoining)
+    try:
+        await chat.restrict_member(
+            user.id, 
+            permissions=ChatPermissions(can_send_messages=False)
+        )
+    except Exception as e:
+        print(f"⚠️ Warning: Could not mute {user.full_name} (Likely Admin/Owner): {e}")
+        pass 
 
-        # 5. Build Math Buttons
-        keyboard = []
-        math_row = []
-        for ans in answers:
-            math_row.append(InlineKeyboardButton(str(ans), callback_data=f"verify_{user.id}_{ans}"))
-            if len(math_row) == 2: 
-                keyboard.append(math_row)
-                math_row = []
-        if math_row: keyboard.append(math_row)
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # 6. Send Simple Captcha Message
+    # 4. Generate Math Challenge
+    question_text, answers = verification.generate_math_question(user.id)
+
+    # 5. Build Math Buttons
+    keyboard = []
+    math_row = []
+    for ans in answers:
+        math_row.append(InlineKeyboardButton(str(ans), callback_data=f"verify_{user.id}_{ans}"))
+        if len(math_row) == 2: 
+            keyboard.append(math_row)
+            math_row = []
+    if math_row: keyboard.append(math_row)
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # 6. Send Simple Captcha Message
+    try:
         captcha_msg = await context.bot.send_message(
             chat_id=chat.id,
             text=f"🛑 欢迎加入, {user.mention_html()}!\n\n"
@@ -66,6 +99,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # 7. Start 3-Minute Timeout
         async def timeout_kick(chat_id, user_id, message_id):
             await asyncio.sleep(180) 
+            # Verify pending status
             if verification.get_verification(user_id):
                 verification.clear_verification(user_id)
                 try:
@@ -74,44 +108,12 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     await context.bot.delete_message(chat_id, message_id)
                 except:
                     pass
-                    
+        
+        # Schedule the task
         context.application.create_task(timeout_kick(chat.id, user.id, captcha_msg.message_id))
-
-
-def _extract_status_change(chat_member_update):
-    """
-    Helper to determine if the user joined.
-    Returns (was_member, is_member) or None.
-    """
-    # Use difference() only to detect change, but use OBJECTS for values
-    status_change = chat_member_update.difference().get("status")
-    
-    if status_change is None:
-        return None
-
-    old_status, new_status = status_change
-    
-    # Get the actual objects
-    old_member = chat_member_update.old_chat_member
-    new_member = chat_member_update.new_chat_member
-
-    # Define "Was Member" based on OLD status
-    was_member = old_status in [
-        ChatMember.MEMBER,
-        ChatMember.OWNER,
-        ChatMember.ADMINISTRATOR,
-    ] or (old_status == ChatMember.RESTRICTED and old_member.is_member is True)
-
-    # Define "Is Member" based on NEW status
-
-    is_member = new_status in [
-        ChatMember.MEMBER,
-        ChatMember.OWNER,
-        ChatMember.ADMINISTRATOR,
-    ] or (new_status == ChatMember.RESTRICTED and new_member.is_member is True)
-
-    return was_member, is_member
-
+        
+    except Exception as e:
+        print(f"❌ Failed to send captcha message: {e}")
 
 async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Triggered when someone clicks the math answers."""
@@ -163,7 +165,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
             )
             
-            # 2. Mark as verified in DB AND Fetch Welcome Config
+            # 2. Mark as verified in DB
             session = Session()
             db_user = session.query(User).filter_by(id=target_user_id).first()
             if not db_user:
@@ -172,7 +174,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             else:
                 db_user.is_verified = True
             
-            # Copy data safely
+            # Get Welcome Config
             config_obj = session.query(WelcomeConfig).filter_by(id=1).first()
             welcome_data = None
             if config_obj:
@@ -186,11 +188,11 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             session.commit()
             session.close()
 
-            # 4. Clean up the Captcha Message
+            # 3. Clean up Captcha
             await query.answer("✅ 验证成功! 你现在可以聊天了.", show_alert=True)
             await query.message.delete()
             
-            # 5. Send the Grand Personalized Welcome Message
+            # 4. Send Welcome Message
             base_text = welcome_data['text'] if welcome_data and welcome_data['text'] else "🎉 Welcome to the group, {user}!"
             final_text = base_text.replace("{user}", clicker.mention_html())
 
@@ -202,7 +204,6 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             welcome_msg = None
 
-            # Send Media/Text
             if welcome_data and welcome_data['media_id']:
                 m_id = welcome_data['media_id']
                 m_type = welcome_data['media_type']
@@ -216,11 +217,11 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             else:
                 welcome_msg = await context.bot.send_message(chat_id=chat.id, text=final_text, reply_markup=reply_markup, parse_mode='HTML')
             
-            # 6. Schedule Auto-Delete for Welcome Message (e.g. 60 seconds)
+            # 5. Auto-delete welcome message
             if welcome_msg:
                 context.job_queue.run_once(
                     cleaner.delete_message_job,
-                    50, # Change this number to adjust how long it stays
+                    50,
                     data={'chat_id': welcome_msg.chat_id, 'message_id': welcome_msg.message_id},
                     name=f"del_welcome_{welcome_msg.chat_id}_{welcome_msg.message_id}"
                 )
