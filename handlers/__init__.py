@@ -22,7 +22,6 @@ def register_handlers(application):
     application.add_handler(CommandHandler("give", admin.give_voucher_command))
     
     # --- ADMIN CALLBACK ROUTING ---
-    # FIX: Specific handlers must be registered BEFORE the generic 'admin_' catch-all
     application.add_handler(CallbackQueryHandler(admin_products.handle_remove_product, pattern="^admin_delete_prod_"))
     application.add_handler(CallbackQueryHandler(admin.admin_callback, pattern="^admin_"))
 
