@@ -91,16 +91,13 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
             unit = "条"
 
         # Format Construction
-        # 1. Rank & Medal
-        line = f"第{rank}名{medal}"
+        #  Rank & Medal
+        line = f"{rank}.{medal}"
         
-        # 2. Name & Spacing
-        # We pad the name to 8 characters length to align the right side
-        # standard 10 spaces requested + alignment padding
-        line += f"{name:<8}" + (" " * 6)
-        
-        # 3. Value & Suffix
-        line += f"{val}{unit}{suffix}"
+        # Value & Suffix
+        line += f"{val}{unit}{suffix}" + (" " * 5) # Spacer to help align names
+        # Name & Spacing
+        line += f"{name:<8}"
         
         # Wrap in <code> to preserve spaces
         text += f"<code>{line}</code>\n"
