@@ -120,6 +120,8 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
         nav_row.append(InlineKeyboardButton("➡️", callback_data=f"lb_{sort_by}_{page+1}"))
     else:
         nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
+
+    keyboard.append(nav_row)
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
