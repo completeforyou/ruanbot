@@ -2,7 +2,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from services import economy
-from telegram.helpers import mention_html
 import math
 
 # Constants
@@ -53,26 +52,58 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     page_users = users[start_idx:end_idx]
     
     # 3. Build Text
+    # We use <b> for title and <code> for the list to ensure alignment
     title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 今日活跃榜"
-    text = f"{title} (Top {MAX_ITEMS})\n"
+    text = f"<b>{title} (Top {MAX_ITEMS})</b>\n"
     text += "━━━━━━━━━━━━━━\n"
     
     rank_start = start_idx + 1
     
     for i, user in enumerate(page_users):
         rank = rank_start + i
-        medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
         
+        # Name Processing: Truncate to 6 chars to keep alignment consistent
         name = user.full_name if user.full_name else "User"
-        # Sanitize name to avoid HTML errors
-        name = name.replace("<", "&lt;").replace(">", "&gt;")
+        name = name.replace("<", "").replace(">", "") # Sanitize HTML
+        if len(name) > 6:
+            name = name[:5] + "…"
         
+        # Decoration Logic (Custom Emojis)
+        if rank == 1:
+            medal = "🥇"
+            suffix = "🐲" # Dragon
+        elif rank == 2:
+            medal = "🥈"
+            suffix = "🐮" # Cow
+        elif rank == 3:
+            medal = "🥉"
+            suffix = "🚰" # Water (as requested)
+        else:
+            medal = "  " # 2 spaces to match medal width roughly
+            suffix = "🌟" # Star for 4th+
+
+        # Value Logic
         if sort_by == 'points':
             val = int(user.points)
-            text += f"{medal} <b>{name}</b>: 💰 {val}\n"
+            unit = "积分"
         else:
             val = user.msg_count_daily
-            text += f"{medal} <b>{name}</b>: 🗣 {val} 条\n"
+            unit = "条"
+
+        # Format Construction
+        # 1. Rank & Medal
+        line = f"第{rank}名{medal}"
+        
+        # 2. Name & Spacing
+        # We pad the name to 8 characters length to align the right side
+        # standard 10 spaces requested + alignment padding
+        line += f"{name:<8}" + (" " * 10)
+        
+        # 3. Value & Suffix
+        line += f"{val}{unit}{suffix}"
+        
+        # Wrap in <code> to preserve spaces
+        text += f"<code>{line}</code>\n"
             
     text += "━━━━━━━━━━━━━━\n"
     text += f"📄 页数: {page + 1}/{math.ceil(len(users)/ITEMS_PER_PAGE)}"
@@ -89,9 +120,9 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
         
     # Toggle Button (Middle)
     if sort_by == 'points':
-        nav_row.append(InlineKeyboardButton("🔄看活跃", callback_data=f"lb_msg_0"))
+        nav_row.append(InlineKeyboardButton("🔄 看活跃", callback_data=f"lb_msg_0"))
     else:
-        nav_row.append(InlineKeyboardButton("🔄看积分", callback_data=f"lb_points_0"))
+        nav_row.append(InlineKeyboardButton("🔄 看积分", callback_data=f"lb_points_0"))
 
     # Next Button
     if end_idx < len(users):
@@ -102,9 +133,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     keyboard.append(nav_row)
     
     # Refresh/Close
-    # MODIFIED: Only show Close button in Private Chats
-    if update.effective_chat.type == 'private':
-        keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
+    keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -112,5 +141,4 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     if is_new:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        # Use edit_message_text for smooth transition
         await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
