@@ -3,66 +3,41 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from services import economy
 import math
-import unicodedata
 
 # Constants
 ITEMS_PER_PAGE = 10
 MAX_ITEMS = 30
 
-def get_visual_width(s):
-    """
-    Calculates the visual width of a string.
-    Wide characters (CJK, Emojis) count as 2, others as 1.
-    """
-    width = 0
-    for char in s:
-        # 'W' = Wide, 'F' = Fullwidth (usually CJK)
-        # 'A' = Ambiguous (often Emoji in monospace contexts)
-        if unicodedata.east_asian_width(char) in ('F', 'W', 'A'):
-            width += 2
-        else:
-            width += 1
-    return width
-
-def smart_pad_truncate(text, target_width):
-    """
-    Truncates text if too long, pads with spaces if too short.
-    Ensures the final visual width is exactly target_width.
-    """
-    # 1. Truncate if too long
-    current_width = get_visual_width(text)
-    if current_width > target_width:
-        # Strip chars one by one until it fits
-        while get_visual_width(text) > target_width - 1: # Leave room for ellipsis? Or just cut.
-            text = text[:-1]
-        # Optional: Add ellipsis "…" (width 1 or 2 depending on font, safely 1)
-        # For strict alignment, we just cut.
-    
-    # 2. Pad if too short
-    current_width = get_visual_width(text)
-    padding = max(0, target_width - current_width)
-    return text + (" " * padding)
-
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Entry point for /rank or 排名
+    Defaults to Page 0, Sort by Points.
     """
+    # Default state
     await render_leaderboard(update, page=0, sort_by='points', is_new=True)
 
 async def leaderboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles pagination buttons: lb_points_1, lb_daily_0, etc.
+    """
     query = update.callback_query
-    data = query.data
+    data = query.data  # Format: lb_{sort_by}_{page}
     
     parts = data.split('_')
-    sort_by = parts[1] 
+    sort_by = parts[1] # 'points' or 'msg'
     page = int(parts[2])
     
     await render_leaderboard(update, page, sort_by, is_new=False)
     await query.answer()
 
 async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bool):
+    """
+    Generates the text and keyboard, then sends or edits the message.
+    """
+    # 1. Fetch Data
     users = economy.get_leaderboard(sort_by=sort_by if sort_by == 'msg' else 'daily_msg' if sort_by == 'msg' else 'points', limit=MAX_ITEMS)
     
+    # Handle empty DB
     if not users:
         text = "📊 还没有用户数据!"
         if is_new:
@@ -71,11 +46,13 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
             await update.callback_query.edit_message_text(text)
         return
 
-    # Pagination
+    # 2. Slice for Pagination
     start_idx = page * ITEMS_PER_PAGE
     end_idx = start_idx + ITEMS_PER_PAGE
     page_users = users[start_idx:end_idx]
     
+    # 3. Build Text
+    # We use <b> for title and <code> for the list to ensure alignment
     title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 今日活跃榜"
     text = f"<b>{title} (Top {MAX_ITEMS})</b>\n"
     text += "━━━━━━━━━━━━━━\n"
@@ -84,37 +61,28 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     
     for i, user in enumerate(page_users):
         rank = rank_start + i
+        
+        # Name Processing: Truncate to 6 chars to keep alignment consistent
         name = user.full_name if user.full_name else "User"
-        name = name.replace("<", "").replace(">", "") # Sanitize
+        name = name.replace("<", "").replace(">", "") # Sanitize HTML
+        if len(name) > 6:
+            name = name[:5] + "…"
         
-        # --- ALIGNMENT LOGIC ---
-        
-        # 1. Prepare Rank Column (Visual Width: 8)
-        # "第 1名" (Wide chars=2, spaces/digits=1) -> 2+1+1+2 = 6 width
-        # Plus Medal (2 width) = 8 width Total
-        if rank < 10:
-            rank_str = f"第 {rank}名" # Add space for alignment
-        else:
-            rank_str = f"第{rank}名"
-            
-        # 2. Prepare Medal & Suffix
+        # Decoration Logic (Custom Emojis)
         if rank == 1:
             medal = "🥇"
-            suffix = "🐲"
+            suffix = "🐲" # Dragon
         elif rank == 2:
             medal = "🥈"
-            suffix = "🐮"
+            suffix = "🐮" # Cow
         elif rank == 3:
             medal = "🥉"
-            suffix = "🚰"
+            suffix = "🚰" # Water (as requested)
         else:
-            medal = "  " # 2 spaces (width 2) to match medal
-            suffix = "🌟"
+            medal = "  " # 2 spaces to match medal width roughly
+            suffix = "🌟" # Star for 4th+
 
-        # 3. Prepare Name Column (Visual Width: 12 - approx 6 Chinese chars)
-        name_padded = smart_pad_truncate(name, 12)
-        
-        # 4. Prepare Value
+        # Value Logic
         if sort_by == 'points':
             val = int(user.points)
             unit = "积分"
@@ -122,40 +90,54 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
             val = user.msg_count_daily
             unit = "条"
 
-        # 5. Construct Line
-        # [Rank+Medal (8)] [Name (12)] [Spacer (10)] [Value...]
-        spacer = " " * 10
-        line = f"{rank_str}{medal}{name_padded}{spacer}{val}{unit}{suffix}"
+        # Format Construction
+        # 1. Rank & Medal
+        line = f"第{rank}名{medal}"
         
+        # 2. Name & Spacing
+        # We pad the name to 8 characters length to align the right side
+        # standard 10 spaces requested + alignment padding
+        line += f"{name:<8}" + (" " * 10)
+        
+        # 3. Value & Suffix
+        line += f"{val}{unit}{suffix}"
+        
+        # Wrap in <code> to preserve spaces
         text += f"<code>{line}</code>\n"
             
     text += "━━━━━━━━━━━━━━\n"
     text += f"📄 页数: {page + 1}/{math.ceil(len(users)/ITEMS_PER_PAGE)}"
 
-    # Buttons
+    # 4. Build Buttons
     keyboard = []
     nav_row = []
     
+    # Back Button
     if page > 0:
         nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"lb_{sort_by}_{page-1}"))
     else:
-        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore")) # Spacer
         
+    # Toggle Button (Middle)
     if sort_by == 'points':
         nav_row.append(InlineKeyboardButton("🔄 看活跃", callback_data=f"lb_msg_0"))
     else:
         nav_row.append(InlineKeyboardButton("🔄 看积分", callback_data=f"lb_points_0"))
 
+    # Next Button
     if end_idx < len(users):
         nav_row.append(InlineKeyboardButton("➡️", callback_data=f"lb_{sort_by}_{page+1}"))
     else:
-        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore")) # Spacer
         
     keyboard.append(nav_row)
+    
+    # Refresh/Close
     keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="admin_close")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # 5. Send
     if is_new:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
     else:
