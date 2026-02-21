@@ -29,7 +29,7 @@ async def request_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     # Create the deep link payload including the group's chat ID
     # Note: Telegram group IDs are usually negative, we cast it to string safely
-    payload = f"invite_{chat.id}"
+    payload = f"invite_{chat.id}_{user.id}"
     deep_link = f"https://t.me/{bot_username}?start={payload}"
 
     config = economy.get_system_config()
@@ -65,8 +65,19 @@ async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     # Process the invite deep link
     if payload.startswith("invite_"):
+        parts = payload.split("_")
+        
+        # --- CHANGED: Extract and validate the User ID ---
         try:
-            target_chat_id = int(payload.replace("invite_", ""))
+            target_chat_id = int(parts[1])
+            # Check if the payload has the user ID attached (for backwards compatibility)
+            if len(parts) >= 3:
+                target_user_id = int(parts[2])
+                
+                # Validation Check!
+                if user.id != target_user_id:
+                    await update.message.reply_text("❌ 这是别人的链接！请在群组内发送 '专属链接' 来获取你自己的邀请链接。")
+                    return
         except ValueError:
             await update.message.reply_text("❌ 无效的链接参数。")
             return
