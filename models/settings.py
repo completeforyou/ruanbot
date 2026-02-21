@@ -22,3 +22,4 @@ class SystemConfig(Base):
     spam_threshold = Column(Float, default=3.0)
     spam_limit = Column(Integer, default=4)
     media_delete_time = Column(Integer, default=60)
+    admin_media_exempt = Column(Boolean, default=True)

@@ -59,6 +59,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_voucher_menu(update)
     elif data == "admin_prod_remove":
         await admin_products.start_remove_product(update, context)
+    elif data == "admin_toggle_ame":
+        conf = economy.get_system_config()
+        current_status = conf.get('admin_media_exempt', True)
+        economy.update_system_config(admin_media_exempt=not current_status)
+        await show_config_menu(update)
 
 # --- SUB-MENUS ---
 
@@ -99,7 +104,7 @@ async def show_voucher_menu(update: Update):
 
 async def show_config_menu(update: Update):
     conf = economy.get_system_config()
-
+    ame_status = "✅ 开启" if conf.get('admin_media_exempt', True) else "🔴 关闭"
     text = (
         f"⚙️ 系统配置\n\n"
         f"📅 签到奖励\n"
@@ -118,6 +123,7 @@ async def show_config_menu(update: Update):
 
         f"🗑 媒体自删 \n"
         f"• 时间: `{conf['media_delete_time']} 秒` (0 = 关闭)\n"
+        f"• 管理员免自删: {ame_status}\n"
     )
     keyboard = [
         [InlineKeyboardButton("✏️ 签到积分", callback_data="admin_set_cpts"),
@@ -130,6 +136,7 @@ async def show_config_menu(update: Update):
          InlineKeyboardButton("✏️ 刷屏条数", callback_data="admin_set_slim")],
 
         [InlineKeyboardButton("✏️ 设置媒体自删时间", callback_data="admin_set_mdel")],
+        [InlineKeyboardButton("👑 切换管理员免自删", callback_data="admin_toggle_ame")],
 
         [InlineKeyboardButton("📝 编辑欢迎消息", callback_data="admin_welcome_set")],
         [InlineKeyboardButton("🔙 返回", callback_data="admin_home")]

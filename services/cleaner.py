@@ -36,9 +36,20 @@ async def schedule_media_deletion(update: Update, context: ContextTypes.DEFAULT_
     # 2. Get Config
     config = economy.get_system_config()
     delay = config.get('media_delete_time', 0)
+    admin_exempt = config.get('admin_media_exempt', True)
 
     # 3. Schedule Job (Only if delay > 0)
     if delay > 0:
+        # --- NEW: Check if user is an admin and exempt them ---
+        if admin_exempt and update.effective_chat.type in ['group', 'supergroup']:
+            try:
+                member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+                if member.status in ['administrator', 'creator']:
+                    return # Skip deletion for admins!
+            except Exception as e:
+                pass # If we can't check admin status, just proceed with deletion to be safe
+        # --------------------------------------------------------
+
         context.job_queue.run_once(
             delete_message_job,
             when=delay,

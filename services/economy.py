@@ -148,7 +148,8 @@ def get_system_config():
             'max_daily_points': config.max_daily_points,
             'spam_threshold': config.spam_threshold,
             'spam_limit': config.spam_limit,
-            'media_delete_time': getattr(config, 'media_delete_time', 60)
+            'media_delete_time': getattr(config, 'media_delete_time', 60),
+            'admin_media_exempt': getattr(config, 'admin_media_exempt', True)
         }
     finally:
         session.close()
