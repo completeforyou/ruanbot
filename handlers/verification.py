@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPer
 from telegram.ext import ContextTypes
 from services import verification, cleaner
 from database import Session, User, WelcomeConfig
-from handlers.invitation import award_invite_points
+from handlers.invitation import register_verified_invite
 
 def _is_effective_member(member_obj) -> bool:
     """
@@ -226,7 +226,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
                     data={'chat_id': welcome_msg.chat_id, 'message_id': welcome_msg.message_id},
                     name=f"del_welcome_{welcome_msg.chat_id}_{welcome_msg.message_id}"
                 )
-            await award_invite_points(clicker, chat.id, context)
+            await register_verified_invite(clicker, context)
 
         except Exception as e:
             print(f"Unrestrict/Welcome failed: {e}")

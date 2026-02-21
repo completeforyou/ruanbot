@@ -38,15 +38,21 @@ def increment_stats(user_id: int):
     """
     session = Session()
     try:
+        # We use returning() for maximum efficiency
         stmt = update(User).where(User.id == user_id).values(
             msg_count_total=User.msg_count_total + 1,
             msg_count_daily=User.msg_count_daily + 1,
             last_msg_date=datetime.utcnow()
-        )
-        session.execute(stmt)
+        ).returning(User.msg_count_total)
+        
+        result = session.execute(stmt)
+        new_total = result.scalar() # Extracts the number
         session.commit()
+        return new_total or 0
     except Exception as e:
         print(f"❌ DB Error stats: {e}")
+        session.rollback()
+        return 0
     finally:
         session.close()
 

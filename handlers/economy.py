@@ -17,7 +17,11 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     economy.get_or_create_user(user.id, user.username, user.first_name)
     
     # 2. Update Message Count
-    economy.increment_stats(user.id)
+    new_msg_count = economy.increment_stats(user.id)
+
+    if new_msg_count == 50:
+        from handlers import invitation
+        await invitation.check_and_reward_invite(user, update.effective_chat.id, context)
     
     # 3. Check Shadow Mute (Admin Penalty)
     if antispam.is_shadow_muted(user.id):

@@ -1,5 +1,5 @@
 # handlers/invitation.py
-from telegram import Update, ChatMember
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.helpers import mention_html
 from telegram.error import TelegramError
@@ -13,64 +13,111 @@ from services import economy
 # Format: {invited_user_id: inviter_user_id}
 _pending_invites = {}
 
-async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def request_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Command: 专属链接
-    Checks for an existing link first. If none, generates a new one.
+    Command: 专属链接 (Used in the group)
+    Sends a button that redirects the user to the bot's DM with a deep link payload.
     """
     chat = update.effective_chat
     user = update.effective_user
 
     if chat.type == 'private':
-        await update.message.reply_text("⚠️ 请在群组中使用此命令。")
+        await update.message.reply_text("⚠️ 请在群组中使用此命令获取该群组的邀请链接。")
         return
 
-    session = Session()
-    try:
-        existing_link = session.query(InviteLink).filter_by(
-            creator_id=user.id, 
-            chat_id=chat.id
-        ).first()
+    bot_username = context.bot.username
+    
+    # Create the deep link payload including the group's chat ID
+    # Note: Telegram group IDs are usually negative, we cast it to string safely
+    payload = f"invite_{chat.id}"
+    deep_link = f"https://t.me/{bot_username}?start={payload}"
 
-        invite_url = None
+    config = economy.get_system_config()
+    reward_points = config['invite_reward_points']
 
-        if existing_link:
-            invite_url = existing_link.link
-        else:
-            try:
-                invite = await context.bot.create_chat_invite_link(
-                    chat_id=chat.id,
-                    name=f"Invite: {user.first_name}", 
-                    creates_join_request=False
-                )
-                invite_url = invite.invite_link
-                
-                new_link = InviteLink(
-                    link=invite_url,
-                    creator_id=user.id,
-                    chat_id=chat.id
-                )
-                session.add(new_link)
-                session.commit()
-            except TelegramError:
-                await update.message.reply_text("❌ 生成失败: 请确保机器人是群管理员，并且有 '管理邀请链接' 的权限。")
-                return
+    keyboard = [[InlineKeyboardButton("📩 点我私聊获取专属链接", url=deep_link)]]
+    
+    await update.message.reply_text(
+        f"👋 {user.mention_html()}，✅ 您的专属链接生成成功:\n"
+        f"🎉 邀请新用户加入，每位验证成功后即可获得 <b>{reward_points}</b> 积分奖励!",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
 
-        config = economy.get_system_config()
-        reward_points = config['invite_reward_points']
+async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Command: /start (Used in Private DM)
+    Reads the deep link payload and generates the link if applicable.
+    """
+    chat = update.effective_chat
+    user = update.effective_user
 
-        await update.message.reply_text(
-            f"✅ {user.mention_html()} 的专属链接:\n\n"
-            f"<code>{invite_url}</code>\n\n"
-            f"🎉 邀请新用户加入，每位奖励 {reward_points} 积分!",
-            parse_mode='HTML'
-        )
-        
-    except Exception as e:
-        print(f"Invite Generation Error: {e}")
-        session.rollback()
-    finally:
-        session.close()
+    if chat.type != 'private':
+        return # Ignore /start commands in groups to prevent spam
+
+    args = context.args
+    
+    # Normal /start without payload
+    if not args:
+        return
+
+    payload = args[0]
+    
+    # Process the invite deep link
+    if payload.startswith("invite_"):
+        try:
+            target_chat_id = int(payload.replace("invite_", ""))
+        except ValueError:
+            await update.message.reply_text("❌ 无效的链接参数。")
+            return
+
+        session = Session()
+        try:
+            # 1. Check if user already has a link for this specific chat
+            existing_link = session.query(InviteLink).filter_by(
+                creator_id=user.id, 
+                chat_id=target_chat_id
+            ).first()
+
+            invite_url = None
+
+            if existing_link:
+                # Reuse existing link
+                invite_url = existing_link.link
+            else:
+                # Generate NEW link
+                try:
+                    invite = await context.bot.create_chat_invite_link(
+                        chat_id=target_chat_id,
+                        name=f"Invite: {user.first_name}", 
+                        creates_join_request=False
+                    )
+                    invite_url = invite.invite_link
+                    
+                    # Save to DB
+                    new_link = InviteLink(
+                        link=invite_url,
+                        creator_id=user.id,
+                        chat_id=target_chat_id
+                    )
+                    session.add(new_link)
+                    session.commit()
+                except TelegramError as e:
+                    await update.message.reply_text(f"❌ 生成失败: 请确保机器人在目标群组中是管理员，并且拥有 '管理邀请链接' 的权限。\n错误代码: {e}")
+                    return
+
+            
+            # 2. Send Response directly in the DM
+            await update.message.reply_text(
+                f"<code>{invite_url}</code>\n\n",
+                parse_mode='HTML'
+            )
+            
+        except Exception as e:
+            print(f"Invite Generation Error: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
 async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -118,21 +165,18 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
 
-async def award_invite_points(invited_user, chat_id, context: ContextTypes.DEFAULT_TYPE):
+async def register_verified_invite(invited_user, context: ContextTypes.DEFAULT_TYPE):
     """
     Called by the verification system AFTER the user passes the math captcha.
-    Rewards the points and logs the referral to the database.
+    Logs the referral to the database, waiting to be rewarded.
     """
-    # Check if this user was invited by someone
     if invited_user.id not in _pending_invites:
         return
     
-    # Pop it from memory so we don't reward twice
     inviter_id = _pending_invites.pop(invited_user.id)
 
     session = Session()
     try:
-        # Final safety check to prevent duplicates
         exists = session.query(Referral).filter_by(
             inviter_id=inviter_id, 
             invited_user_id=invited_user.id
@@ -141,28 +185,53 @@ async def award_invite_points(invited_user, chat_id, context: ContextTypes.DEFAU
         if exists:
             return
             
-        # 1. Save Referral to DB
+        # Save Referral to DB. is_rewarded defaults to False.
         new_ref = Referral(inviter_id=inviter_id, invited_user_id=invited_user.id)
         session.add(new_ref)
+        session.commit()
+    except Exception as e:
+        print(f"Referral Registration Error: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+async def check_and_reward_invite(invited_user, chat_id, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Triggered when an invited user hits 50 messages.
+    """
+    session = Session()
+    try:
+        # Find the unrewarded referral
+        referral = session.query(Referral).filter_by(
+            invited_user_id=invited_user.id, 
+            is_rewarded=False
+        ).first()
+
+        if not referral:
+            return # They either weren't invited, or got rewarded already!
+
+        # Mark as rewarded
+        referral.is_rewarded = True
+        inviter_id = referral.inviter_id
         
-        # 2. Get Inviter Name
+        # Get Inviter Name
         inviter_user = session.query(User).filter_by(id=inviter_id).first()
         inviter_name = inviter_user.full_name if inviter_user else str(inviter_id)
 
         session.commit()
-        session.close() 
+        session.close() # Close session before calling economy service
         
-        # 3. Award Points (Fetch config dynamically!)
+        # Award Points
         config = economy.get_system_config()
         reward_points = config['invite_reward_points']
         economy.add_points(inviter_id, float(reward_points))
 
-        # 4. Notify Group
+        # Notify Group
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"📢 <b>邀请成功!</b>\n"
-                 f"🎉 {mention_html(inviter_id, inviter_name)} 邀请了 {invited_user.mention_html()}!\n"
-                 f"💰 邀请人获得奖励: <b>{reward_points}</b> 积分",
+            text=f"📢 <b>邀请奖励发放!</b>\n"
+                 f"🎉 {invited_user.mention_html()} 成功满足条件！\n"
+                 f"💰 邀请人 {mention_html(inviter_id, inviter_name)} 获得 <b>{reward_points}</b> 积分",
             parse_mode='HTML'
         )
 
