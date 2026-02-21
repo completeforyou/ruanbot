@@ -9,6 +9,8 @@ from models.invite_link import InviteLink
 from models.user import User
 from services import economy
 
+config = economy.get_system_config()
+reward_points = config['invite_reward_points']
 # Config
 async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -62,7 +64,7 @@ async def generate_invite_link(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             f"✅ {user.mention_html()} 的专属链接:\n\n"
             f"<code>{invite_url}</code>\n\n"
-            f"🎉 邀请新用户加入，每位奖励 {INVITE_REWARD_POINTS} 积分!",
+            f"🎉 邀请新用户加入，每位奖励 {reward_points} 积分!",
             parse_mode='HTML'
         )
         
@@ -95,8 +97,7 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     link_url = invite_used.invite_link
 
-    config = economy.get_system_config()
-    reward_points = config['invite_reward_points']
+    
 
     # 3. Database Processing
     session = Session()
