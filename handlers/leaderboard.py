@@ -52,7 +52,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     page_users = users[start_idx:end_idx]
     
     # 3. Build Text
-    title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 今日活跃榜"
+    title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 活跃榜"
     text = f"<b>{title} (Top {MAX_ITEMS})</b>\n"
     text += "━━━━━━━━━━━━━━\n"
     
