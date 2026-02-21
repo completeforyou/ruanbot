@@ -5,11 +5,22 @@ from telegram.ext import ContextTypes
 # In-Memory Caches
 _spam_cache = {}          # {user_id: [timestamp1, timestamp2...]}
 _shadow_mutes = {}        # {user_id: timestamp_when_penalty_ends}
+_recent_media_groups = {} # {media_group_id: timestamp}  <-- NEW: Tracks albums
 
-def check_is_spamming(user_id: int, limit: int, timeframe: float) -> bool:
+def check_is_spamming(user_id: int, limit: int, timeframe: float, media_group_id: str = None) -> bool:
     """Returns True if user sent > limit messages in timeframe seconds."""
     now = datetime.now().timestamp()
     
+    # --- NEW: Handle Albums / Media Groups ---
+    if media_group_id:
+        if media_group_id in _recent_media_groups:
+            # We already counted the first item of this album. Ignore the rest.
+            return False
+        else:
+            # First time seeing this album, log it so we ignore the rest.
+            _recent_media_groups[media_group_id] = now
+    # -----------------------------------------
+
     if user_id not in _spam_cache:
         _spam_cache[user_id] = []
     
@@ -63,3 +74,13 @@ async def cleanup_cache(context: ContextTypes.DEFAULT_TYPE):
             
     for user_id in mutes_to_remove:
         del _shadow_mutes[user_id]
+
+    # 3. Clean Media Group Cache (NEW)
+    groups_to_remove = []
+    for mg_id, timestamp in _recent_media_groups.items():
+        # Keep media groups in memory for 60 seconds (plenty of time for an album upload)
+        if now - timestamp > 60.0:
+            groups_to_remove.append(mg_id)
+            
+    for mg_id in groups_to_remove:
+        del _recent_media_groups[mg_id]

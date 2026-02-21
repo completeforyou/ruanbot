@@ -14,6 +14,9 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
     user = update.effective_user
     chat = update.effective_chat
+    
+    # --- NEW: Extract media_group_id safely ---
+    media_group_id = getattr(update.message, 'media_group_id', None)
 
     # FETCH DYNAMIC SETTINGS
     sys_config = economy.get_system_config()
@@ -21,11 +24,12 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
     timeframe = sys_config['spam_threshold']
     
     # --- PHASE 2: ANTI-SPAM ---
-    # Only run if content was safe
+    # Pass the media_group_id to the function
     is_spam = antispam.check_is_spamming(
         user.id, 
         limit=limit, 
-        timeframe=timeframe
+        timeframe=timeframe,
+        media_group_id=media_group_id
     )
     
     if is_spam:
