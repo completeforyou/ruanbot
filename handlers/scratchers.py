@@ -33,7 +33,7 @@ async def handle_scratcher_play(update: Update, context: ContextTypes.DEFAULT_TY
     product_id = int(query.data.split("_")[2])
     
     async with AsyncSessionLocal() as session:
-        result_user = await session.execute(select(User).filter_by(id=user.id))
+        result_user = await session.execute(select(User).filter_by(id=user.id).with_for_update())        
         db_user = result_user.scalars().first()
         
         # Row locking

@@ -82,13 +82,42 @@ async def add_vouchers(user_id: int, amount: int):
 async def reset_daily_msg_counts(context=None):
     async with AsyncSessionLocal() as session:
         try:
-            stmt = update(User).values(msg_count_daily=0)
+            # We now reset both daily messages AND daily points
+            stmt = update(User).values(msg_count_daily=0, points_earned_daily=0.0)
             await session.execute(stmt)
             await session.commit()
-            print("🔄 Daily message counts have been reset.")
+            print("🔄 Daily message counts and daily points have been reset.")
         except Exception as e:
             print(f"❌ Error resetting daily counts: {e}")
             await session.rollback()
+
+async def award_chat_points(user_id: int, amount: float, max_daily_points: int) -> bool:
+    """Awards points securely, checking against the daily limit."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # .with_for_update() locks the row so rapid messages don't bypass the limit
+            result = await session.execute(select(User).filter_by(id=user_id).with_for_update())
+            user = result.scalars().first()
+            
+            if not user:
+                return False
+
+            # Check if adding these points exceeds the limit
+            if user.points_earned_daily + amount <= max_daily_points:
+                user.points += amount
+                user.points_earned_daily += amount
+                await session.commit()
+                print(f"💰 Chat Points Added! User: {user_id}, Amount: +{amount} (Daily: {user.points_earned_daily}/{max_daily_points})")
+                return True
+            else:
+                # Limit reached, roll back the lock
+                await session.rollback()
+                return False
+                
+        except Exception as e:
+            await session.rollback()
+            print(f"❌ DB Error awarding chat points: {e}")
+            return False
 
 async def get_leaderboard(sort_by='points', limit=10, offset=0):
     async with AsyncSessionLocal() as session:

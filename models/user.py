@@ -23,3 +23,4 @@ class User(Base):
     last_msg_date = Column(DateTime, default=datetime.utcnow)
     is_verified = Column(Boolean, default=False)
     is_muted = Column(Boolean, default=False)
+    points_earned_daily = Column(Float, default=0.0)

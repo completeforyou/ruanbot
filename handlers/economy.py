@@ -6,9 +6,9 @@ from services import economy, antispam, cleaner
 
 async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Updates user stats and awards random points.
+    Updates user stats and awards random points within daily limits.
     """
-    if not update.message or not update.message.from_user:
+    if not update.message or not update.message.fromuser:
         return
 
     user = update.effective_user
@@ -27,11 +27,15 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if antispam.is_shadow_muted(user.id):
         return # No points for bad admins!
 
-    # 4. Award Points
+    # 4. Award Points (With Daily Limit Check)
+    sys_config = await economy.get_system_config()
+    max_daily_points = sys_config.get('max_daily_points', 100)
+
     CHANCE = 0.20
     roll = random.random()
     if roll < CHANCE:
-        await economy.add_points(user.id, 1.0)
+        # Use our new secure function that respects the daily limit!
+        await economy.award_chat_points(user.id, 1.0, max_daily_points)
 
 async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

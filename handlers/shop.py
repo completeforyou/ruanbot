@@ -78,7 +78,7 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     
     async with AsyncSessionLocal() as session:
-        result_user = await session.execute(select(User).filter_by(id=user.id))
+        result_user = await session.execute(select(User).filter_by(id=user.id).with_for_update())
         db_user = result_user.scalars().first()
         if not db_user: return
         
