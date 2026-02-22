@@ -14,6 +14,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 # If variable is missing, it defaults to an empty list []
 admin_env = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = [int(x) for x in admin_env.split(",")] if admin_env else []
+DEFAULT_GROUP_ID = os.getenv("DEFAULT_GROUP_ID", "2742412422") # Replace with your actual main group ID
 
 # --- Tuning / Gameplay Settings ---
 # We use defaults (second argument) so the bot still works if you forget to set them in Railway

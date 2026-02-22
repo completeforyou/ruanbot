@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.helpers import mention_html
 import re
+import config
 from telegram.constants import ChatAction
 from utils.decorators import admin_only, private_chat_only
 from services import economy
@@ -289,15 +290,15 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
 @private_chat_only
 async def send_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /send <link> <optional text>
-    Can be used by replying to a message (to forward media/text) or as a standalone command.
+    /send <link> <text>
+    /send <chat_id> <text>
+    /send <text> (Goes to default group)
     """
-    # 1. Parse Arguments & Link
     args_text = " ".join(context.args) if context.args else ""
-    target_chat_id = None
+    target_chat_id = getattr(config, 'DEFAULT_GROUP_ID', None) # Fallback to default
     reply_target_message_id = None
 
-    # Regex handles both Private (t.me/c/123/456) and Public (t.me/groupname/456) links
+    # 1. Check if they provided a Telegram message link
     link_match = re.search(r'https://t\.me/(?:c/(\d+)|([a-zA-Z0-9_]+))/(\d+)', args_text)
     
     if link_match:
@@ -311,45 +312,46 @@ async def send_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target_chat_id = f"@{public_id}"
             
         reply_target_message_id = message_id
-        # Remove the link from the text we want to send
+        # Remove the link from the text
         args_text = re.sub(r'https://t\.me/(?:c/\d+|[a-zA-Z0-9_]+)/\d+', '', args_text).strip()
-    else:
-        await update.message.reply_text("⚠️ 请提供一个有效的群组消息链接 (Please provide a valid message link).")
+    
+    # 2. Check if they provided a direct Chat ID (e.g., -100123... or @groupname)
+    elif context.args and (context.args[0].startswith('-100') or context.args[0].startswith('@')):
+        target_chat_id = context.args[0]
+        # Remove the ID from the text
+        args_text = " ".join(context.args[1:])
+        
+    # 3. If no link and no ID, it will try to use the DEFAULT_GROUP_ID.
+    if not target_chat_id:
+        await update.message.reply_text("⚠️ 无法确定目标群组。请提供链接、群组ID，或在配置中设置默认群组。")
         return
 
-    # 2. Determine WHAT to send (Replied media vs. Typed text)
+    # --- The rest of the sending logic remains exactly the same! ---
     reply_msg = update.message.reply_to_message
 
     try:
         if reply_msg:
-            # --- SENDING MEDIA ---
             caption = args_text if args_text else reply_msg.caption
             
             if reply_msg.photo:
                 await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_PHOTO)
                 await context.bot.send_photo(chat_id=target_chat_id, photo=reply_msg.photo[-1].file_id, caption=caption, reply_to_message_id=reply_target_message_id)
-            
             elif reply_msg.video:
                 await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_VIDEO)
                 await context.bot.send_video(chat_id=target_chat_id, video=reply_msg.video.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
-            
             elif reply_msg.document:
                 await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_DOCUMENT)
                 await context.bot.send_document(chat_id=target_chat_id, document=reply_msg.document.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
-            
             elif reply_msg.audio:
                 await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_AUDIO)
                 await context.bot.send_audio(chat_id=target_chat_id, audio=reply_msg.audio.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
-            
             elif reply_msg.text:
-                # If they replied to a text message
                 text_to_send = args_text if args_text else reply_msg.text
                 await context.bot.send_message(chat_id=target_chat_id, text=text_to_send, reply_to_message_id=reply_target_message_id)
             else:
                 await update.message.reply_text("⚠️ 不支持的媒体类型 (Unsupported media type).")
                 return
         elif args_text:
-            # --- SENDING PLAIN TEXT ---
             await context.bot.send_message(chat_id=target_chat_id, text=args_text, reply_to_message_id=reply_target_message_id)
         else:
             await update.message.reply_text("⚠️ 请输入要发送的文本，或回复一条包含媒体的消息。")
