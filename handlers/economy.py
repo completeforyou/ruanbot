@@ -8,7 +8,7 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Updates user stats and awards random points within daily limits.
     """
-    if not update.message or not update.message.fromuser:
+    if not update.message or not update.message.from_user:
         return
 
     user = update.effective_user
