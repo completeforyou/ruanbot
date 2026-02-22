@@ -229,7 +229,7 @@ async def process_check_in(user_id: int, username: str, full_name: str):
             check_in_limit = sys_conf.get('check_in_limit', 1)
             check_in_points = sys_conf.get('check_in_points', 10.0)
 
-            now = datetime.now()
+            now = datetime.utcnow()
             if user.last_check_in_date:
                 if user.last_check_in_date.date() < now.date():
                     user.daily_check_in_count = 0
