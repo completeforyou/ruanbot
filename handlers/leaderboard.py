@@ -38,10 +38,10 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     start_idx = page * ITEMS_PER_PAGE
 
     # 2. Fetch EXACTLY 10 users from the DB (Super Fast!)
-    page_users = economy.get_leaderboard(sort_by=sort_by, limit=ITEMS_PER_PAGE, offset=start_idx)
+    page_users = await economy.get_leaderboard(sort_by=sort_by, limit=ITEMS_PER_PAGE, offset=start_idx)
     
     # 3. Fetch Total Pages
-    total_users = economy.get_total_ranked_users(max_limit=MAX_ITEMS)
+    total_users = await economy.get_total_ranked_users(max_limit=MAX_ITEMS)
     total_pages = math.ceil(total_users / ITEMS_PER_PAGE)
     if total_pages == 0: total_pages = 1
     
