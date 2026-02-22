@@ -4,7 +4,8 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions, ChatMember
 from telegram.ext import ContextTypes
 from services import verification, cleaner
-from database import Session, User, WelcomeConfig
+from database import AsyncSessionLocal, User, WelcomeConfig
+from sqlalchemy import select
 from handlers.invitation import register_verified_invite, clear_pending_invite
 
 def _is_effective_member(member_obj) -> bool:
@@ -169,27 +170,28 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             
             # 2. Mark as verified in DB
-            session = Session()
-            db_user = session.query(User).filter_by(id=target_user_id).first()
-            if not db_user:
-                db_user = User(id=clicker.id, username=clicker.username, full_name=clicker.first_name, is_verified=True)
-                session.add(db_user)
-            else:
-                db_user.is_verified = True
-            
-            # Get Welcome Config
-            config_obj = session.query(WelcomeConfig).filter_by(id=1).first()
-            welcome_data = None
-            if config_obj:
-                welcome_data = {
-                    'text': config_obj.text,
-                    'media_id': config_obj.media_file_id,
-                    'media_type': config_obj.media_type,
-                    'buttons': config_obj.buttons
-                }
-            
-            session.commit()
-            session.close()
+            async with AsyncSessionLocal() as session:
+                result_user = await session.execute(select(User).filter_by(id=target_user_id))
+                db_user = result_user.scalars().first()
+                if not db_user:
+                    db_user = User(id=clicker.id, username=clicker.username, full_name=clicker.first_name, is_verified=True)
+                    session.add(db_user)
+                else:
+                    db_user.is_verified = True
+                
+                # Get Welcome Config
+                result_conf = await session.execute(select(WelcomeConfig).filter_by(id=1))
+                config_obj = result_conf.scalars().first()
+                welcome_data = None
+                if config_obj:
+                    welcome_data = {
+                        'text': config_obj.text,
+                        'media_id': config_obj.media_file_id,
+                        'media_type': config_obj.media_type,
+                        'buttons': config_obj.buttons
+                    }
+                
+                await session.commit()
 
             # 3. Clean up Captcha
             await query.answer("✅ 验证成功! 你现在可以聊天了.", show_alert=True)

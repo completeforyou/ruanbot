@@ -7,7 +7,8 @@ import config
 from telegram.constants import ChatAction
 from utils.decorators import admin_only, private_chat_only
 from services import economy
-from database import Session, Product
+from database import AsyncSessionLocal, Product
+from sqlalchemy import select, func
 from models.user import User
 from handlers import admin_products
 
@@ -71,9 +72,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- SUB-MENUS ---
 
 async def show_shop_menu(update: Update):
-    session = Session()
-    prod_count = session.query(Product).count()
-    session.close()
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.count(Product.id)))
+        prod_count = result.scalar() or 0
 
     text = (
         f"🏪 商城管理\n"
@@ -260,11 +261,11 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
         try:
             if args[0].isdigit(): 
                 target_id = int(args[0])
-                session = Session()
-                db_user = session.query(User).filter_by(id=target_id).first()
-                if db_user:
-                    target_name = db_user.full_name
-                session.close()
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(select(User).filter_by(id=target_id))
+                    db_user = result.scalars().first()
+                    if db_user:
+                        target_name = db_user.full_name
             else: 
                 # Resolving username requires database lookup or cache, 
                 # but ID is safer/easier for this scope.

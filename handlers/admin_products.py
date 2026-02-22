@@ -2,7 +2,8 @@
 from multiprocessing import context
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from database import Session, Product
+from sqlalchemy import select
+from database import AsyncSessionLocal, Product
 from utils.decorators import admin_only, private_chat_only
 
 # Steps
@@ -102,17 +103,16 @@ async def receive_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stock = int(update.message.text)
         data = context.user_data['new_product']
         
-        session = Session()
-        new_prod = Product(
-            name=data['name'],
-            type=data['type'],
-            cost=data['cost'],
-            chance=data['chance'],
-            stock=stock
-        )
-        session.add(new_prod)
-        session.commit()
-        session.close()
+        async with AsyncSessionLocal() as session:
+            new_prod = Product(
+                name=data['name'],
+                type=data['type'],
+                cost=data['cost'],
+                chance=data['chance'],
+                stock=stock
+            )
+            session.add(new_prod)
+            await session.commit()
         
         keyboard = [[InlineKeyboardButton("🔙 返回控制面板", callback_data="admin_home")]]
         await update.message.reply_text(f"✅ {data['type'].title()} 商品已添加！\n{data['name']}", 
@@ -137,9 +137,9 @@ async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def start_remove_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lists products with delete buttons."""
-    session = Session()
-    products = session.query(Product).all()
-    session.close()
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Product))
+        products = result.scalars().all()
 
     if not products:
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_shop_menu")]]
@@ -172,20 +172,17 @@ async def handle_remove_product(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     prod_id = int(query.data.split('_')[-1])
     
-    session = Session()
-    try:
-        # Find and Delete
-        product = session.query(Product).filter_by(id=prod_id).first()
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Product).filter_by(id=prod_id))
+        product = result.scalars().first()
+        
         if product:
             name = product.name
-            session.delete(product)
-            session.commit()
+            await session.delete(product)
+            await session.commit()
             await query.answer(f"✅ 删除: {name}", show_alert=True)
         else:
             await query.answer("❌ 商品已删除.", show_alert=True)
-            
-    finally:
-        session.close()
     
     # Refresh the list
     await start_remove_product(update, context)

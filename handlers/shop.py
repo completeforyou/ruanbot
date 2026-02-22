@@ -1,21 +1,17 @@
 # handlers/shop.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from database import Session, Product, User
+from database import AsyncSessionLocal, Product, User
+from sqlalchemy import select
 from services import economy
 import config
 
 async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows Point Shop items + Option to buy Vouchers."""
-    session = Session()
-    try:
+    async with AsyncSessionLocal() as session:
         # Filter for type='shop'
-        products = session.query(Product).filter_by(is_active=True, type='shop').filter(Product.stock > 0).all()
-        
-        user = update.effective_user
-        db_user = session.query(User).filter_by(id=user.id).first()
-        points = int(db_user.points) if db_user else 0
-        vouchers = db_user.vouchers if db_user else 0
+        result = await session.execute(select(Product).filter_by(is_active=True, type='shop').filter(Product.stock > 0))
+        products = result.scalars().all()
         
         # --- CAPTION TEXT ---
         msg = f"🛒 积分商城\n"
@@ -76,16 +72,14 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown'
             )
 
-    finally:
-        session.close()
 async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     data = query.data
     
-    session = Session()
-    try:
-        db_user = session.query(User).filter_by(id=user.id).first()
+    async with AsyncSessionLocal() as session:
+        result_user = await session.execute(select(User).filter_by(id=user.id))
+        db_user = result_user.scalars().first()
         if not db_user: return
         
         # A. Buying a Voucher
@@ -100,9 +94,8 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if db_user.points >= v_price:
                 db_user.points -= v_price
                 db_user.vouchers += 1
-                session.commit()
+                await session.commit()
                 await query.answer("✅ 兑奖券购买成功!", show_alert=True)
-                # Refresh the menu to show new balance
                 await open_shop_menu(update, context) 
             else:
                 await query.answer(f"❌ 需要 {v_price} 积分!", show_alert=True)
@@ -112,10 +105,8 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_id = int(data.split("_")[2])
         
         # Atomic Check (prevent race conditions)
-        # We need to re-query to get the object for logic, 
-        # but strictly speaking, we should use atomic UPDATE here as discussed previously.
-        # For now, we will fix the 'NoneType' error first.
-        product = session.query(Product).filter_by(id=product_id).first()
+        result_prod = await session.execute(select(Product).filter_by(id=product_id).with_for_update())
+        product = result_prod.scalars().first()
         
         if not product or product.stock <= 0:
             await query.answer("❌ 库存不足!", show_alert=True)
@@ -125,7 +116,7 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if db_user.points >= cost:
             db_user.points -= cost
             product.stock -= 1
-            session.commit()
+            await session.commit()
             
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
@@ -136,6 +127,3 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.delete()
         else:
             await query.answer(f"❌ 需要 {cost} 积分!", show_alert=True)
-            
-    finally:
-        session.close()

@@ -1,7 +1,8 @@
 # handlers/admin_welcome.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from database import Session, WelcomeConfig
+from database import AsyncSessionLocal, WelcomeConfig
+from sqlalchemy import select
 from utils.decorators import admin_only, private_chat_only
 
 # Conversation states
@@ -84,20 +85,20 @@ async def receive_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 data['buttons'].append([parts[0].strip(), parts[1].strip()])
 
     # Save to Database
-    session = Session()
-    
-    config = session.query(WelcomeConfig).filter_by(id=1).first()
-    if not config:
-        config = WelcomeConfig(id=1)
-        session.add(config)
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(WelcomeConfig).filter_by(id=1))
+        config = result.scalars().first()
         
-    config.media_file_id = data['media_id']
-    config.media_type = data['media_type']
-    config.text = data['text']
-    config.buttons = data['buttons']
-    
-    session.commit()
-    session.close()
+        if not config:
+            config = WelcomeConfig(id=1)
+            session.add(config)
+            
+        config.media_file_id = data['media_id']
+        config.media_type = data['media_type']
+        config.text = data['text']
+        config.buttons = data['buttons']
+        
+        await session.commit()
     
     await update.message.reply_text("✅ 欢迎消息已更新!")
     return ConversationHandler.END

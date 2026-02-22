@@ -3,7 +3,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.helpers import mention_html
 from telegram.error import TelegramError
-from database import Session
+
+from database import AsyncSessionLocal
+from sqlalchemy import select
+
 from models.referral import Referral
 from models.invite_link import InviteLink
 from models.user import User
@@ -33,10 +36,10 @@ async def request_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     bot_username = context.bot.username
     
     # Create the deep link payload including the group's chat ID
-    # Note: Telegram group IDs are usually negative, we cast it to string safely
     payload = f"invite_{chat.id}_{user.id}"
     deep_link = f"https://t.me/{bot_username}?start={payload}"
 
+    # --- NEW: Await the async config fetch ---
     config = await economy.get_system_config()
     reward_points = config['invite_reward_points']
 
@@ -62,24 +65,19 @@ async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     args = context.args
     
-    # Normal /start without payload
     if not args:
         return
 
     payload = args[0]
     
-    # Process the invite deep link
     if payload.startswith("invite_"):
         parts = payload.split("_")
         
-        # --- CHANGED: Extract and validate the User ID ---
         try:
             target_chat_id = int(parts[1])
-            # Check if the payload has the user ID attached (for backwards compatibility)
             if len(parts) >= 3:
                 target_user_id = int(parts[2])
                 
-                # Validation Check!
                 if user.id != target_user_id:
                     await update.message.reply_text("❌ 这是别人的链接！请在群组内发送 '专属链接' 来获取你自己的邀请链接。")
                     return
@@ -87,53 +85,50 @@ async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("❌ 无效的链接参数。")
             return
 
-        session = Session()
-        try:
-            # 1. Check if user already has a link for this specific chat
-            existing_link = session.query(InviteLink).filter_by(
-                creator_id=user.id, 
-                chat_id=target_chat_id
-            ).first()
+        # --- FIX: Ensure the inviter exists in the database so they can receive points later! ---
+        await economy.get_or_create_user(user.id, user.username, user.first_name)
 
-            invite_url = None
+        # --- QUERY 1: ASYNC CONVERSION ---
+        async with AsyncSessionLocal() as session:
+            try:
+                # Check if user already has a link for this specific chat
+                result = await session.execute(
+                    select(InviteLink).filter_by(creator_id=user.id, chat_id=target_chat_id)
+                )
+                existing_link = result.scalars().first()
 
-            if existing_link:
-                # Reuse existing link
-                invite_url = existing_link.link
-            else:
-                # Generate NEW link
-                try:
-                    invite = await context.bot.create_chat_invite_link(
-                        chat_id=target_chat_id,
-                        name=f"Invite: {user.first_name}", 
-                        creates_join_request=False
-                    )
-                    invite_url = invite.invite_link
-                    
-                    # Save to DB
-                    new_link = InviteLink(
-                        link=invite_url,
-                        creator_id=user.id,
-                        chat_id=target_chat_id
-                    )
-                    session.add(new_link)
-                    session.commit()
-                except TelegramError as e:
-                    await update.message.reply_text(f"❌ 生成失败: 请确保机器人在目标群组中是管理员，并且拥有 '管理邀请链接' 的权限。\n错误代码: {e}")
-                    return
+                invite_url = None
 
-            
-            # 2. Send Response directly in the DM
-            await update.message.reply_text(
-                f"<code>{invite_url}</code>\n\n",
-                parse_mode='HTML'
-            )
-            
-        except Exception as e:
-            print(f"Invite Generation Error: {e}")
-            session.rollback()
-        finally:
-            session.close()
+                if existing_link:
+                    invite_url = existing_link.link
+                else:
+                    try:
+                        invite = await context.bot.create_chat_invite_link(
+                            chat_id=target_chat_id,
+                            name=f"Invite: {user.first_name}", 
+                            creates_join_request=False
+                        )
+                        invite_url = invite.invite_link
+                        
+                        new_link = InviteLink(
+                            link=invite_url,
+                            creator_id=user.id,
+                            chat_id=target_chat_id
+                        )
+                        session.add(new_link)
+                        await session.commit()
+                    except TelegramError as e:
+                        await update.message.reply_text(f"❌ 生成失败: 请确保机器人在目标群组中是管理员，并且拥有 '管理邀请链接' 的权限。\n错误代码: {e}")
+                        return
+                
+                await update.message.reply_text(
+                    f"<code>{invite_url}</code>\n\n",
+                    parse_mode='HTML'
+                )
+                
+            except Exception as e:
+                print(f"Invite Generation Error: {e}")
+                await session.rollback()
 
 async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -152,34 +147,32 @@ async def track_join_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     link_url = invite_used.invite_link
 
-    session = Session()
-    try:
-        link_record = session.query(InviteLink).filter_by(link=link_url).first()
-        if not link_record:
-            return
+    # --- QUERY 2: ASYNC CONVERSION ---
+    async with AsyncSessionLocal() as session:
+        try:
+            result_link = await session.execute(select(InviteLink).filter_by(link=link_url))
+            link_record = result_link.scalars().first()
+            
+            if not link_record:
+                return
 
-        inviter_id = link_record.creator_id
+            inviter_id = link_record.creator_id
 
-        # Prevent Self-Referral
-        if inviter_id == user.id:
-            return 
+            if inviter_id == user.id:
+                return 
 
-        # Check if already referred previously
-        exists = session.query(Referral).filter_by(
-            inviter_id=inviter_id, 
-            invited_user_id=user.id
-        ).first()
+            result_ref = await session.execute(
+                select(Referral).filter_by(inviter_id=inviter_id, invited_user_id=user.id)
+            )
+            exists = result_ref.scalars().first()
 
-        if exists:
-            return
-        
-        # Save as a pending invite! Will be rewarded after verification.
-        _pending_invites[user.id] = inviter_id
+            if exists:
+                return
+            
+            _pending_invites[user.id] = inviter_id
 
-    except Exception as e:
-        print(f"Referral Tracking Error: {e}")
-    finally:
-        session.close()
+        except Exception as e:
+            print(f"Referral Tracking Error: {e}")
 
 async def register_verified_invite(invited_user, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -191,54 +184,57 @@ async def register_verified_invite(invited_user, context: ContextTypes.DEFAULT_T
     
     inviter_id = _pending_invites.pop(invited_user.id)
 
-    session = Session()
-    try:
-        exists = session.query(Referral).filter_by(
-            inviter_id=inviter_id, 
-            invited_user_id=invited_user.id
-        ).first()
+    # --- QUERY 3: ASYNC CONVERSION ---
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(
+                select(Referral).filter_by(inviter_id=inviter_id, invited_user_id=invited_user.id)
+            )
+            exists = result.scalars().first()
 
-        if exists:
-            return
-            
-        # Save Referral to DB. is_rewarded defaults to False.
-        new_ref = Referral(inviter_id=inviter_id, invited_user_id=invited_user.id)
-        session.add(new_ref)
-        session.commit()
-    except Exception as e:
-        print(f"Referral Registration Error: {e}")
-        session.rollback()
-    finally:
-        session.close()
+            if exists:
+                return
+                
+            new_ref = Referral(inviter_id=inviter_id, invited_user_id=invited_user.id)
+            session.add(new_ref)
+            await session.commit()
+        except Exception as e:
+            print(f"Referral Registration Error: {e}")
+            await session.rollback()
 
 async def check_and_reward_invite(invited_user, chat_id, context: ContextTypes.DEFAULT_TYPE):
     """
     Triggered when an invited user hits 50 messages.
     """
-    session = Session()
-    try:
-        # Find the unrewarded referral
-        referral = session.query(Referral).filter_by(
-            invited_user_id=invited_user.id, 
-            is_rewarded=False
-        ).first()
+    inviter_id = None
+    inviter_name = None
 
-        if not referral:
-            session.close()
-            return # They either weren't invited, or got rewarded already!
+    # --- QUERY 4: ASYNC CONVERSION ---
+    async with AsyncSessionLocal() as session:
+        try:
+            result_ref = await session.execute(
+                select(Referral).filter_by(invited_user_id=invited_user.id, is_rewarded=False)
+            )
+            referral = result_ref.scalars().first()
 
-        # Mark as rewarded
-        referral.is_rewarded = True
-        inviter_id = referral.inviter_id
-        
-        # Get Inviter Name
-        inviter_user = session.query(User).filter_by(id=inviter_id).first()
-        inviter_name = inviter_user.full_name if inviter_user else str(inviter_id)
+            if not referral:
+                return 
 
-        session.commit()
-        session.close() # Close session before calling economy service
-        
-        # Award Points
+            referral.is_rewarded = True
+            inviter_id = referral.inviter_id
+            
+            result_user = await session.execute(select(User).filter_by(id=inviter_id))
+            inviter_user = result_user.scalars().first()
+            inviter_name = inviter_user.full_name if inviter_user else str(inviter_id)
+
+            await session.commit()
+        except Exception as e:
+            print(f"Referral Awarding Error: {e}")
+            await session.rollback()
+            return  # Stop executing if there was a DB error
+            
+    # Award Points (Executed after the DB session closes to free up the connection faster)
+    if inviter_id:
         config = await economy.get_system_config()
         reward_points = config['invite_reward_points']
         await economy.add_points(inviter_id, float(reward_points))
@@ -251,8 +247,3 @@ async def check_and_reward_invite(invited_user, chat_id, context: ContextTypes.D
                  f"💰 邀请人 {mention_html(inviter_id, inviter_name)} 获得 <b>{reward_points}</b> 积分",
             parse_mode='HTML'
         )
-
-    except Exception as e:
-        print(f"Referral Awarding Error: {e}")
-        session.rollback()
-        session.close()

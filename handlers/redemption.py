@@ -1,22 +1,15 @@
 # handlers/redemption.py
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from database import Session, Product, User
+from database import AsyncSessionLocal, Product, User
+from sqlalchemy import select
 import random
 
 async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows only LOTTERY items (Cost = Vouchers)."""
-    session = Session()
-    # Filter for type='lottery'
-    products = session.query(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0).all()
-    session.close()
-    
-    # Get User Balance
-    user = update.effective_user
-    session = Session()
-    db_user = session.query(User).filter_by(id=user.id).first()
-    vouchers = db_user.vouchers if db_user else 0
-    session.close()
+    async with AsyncSessionLocal() as session:
+        result_prod = await session.execute(select(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0))
+        products = result_prod.scalars().all()
 
     msg = f"🎰 付费抽奖 🎰\n"
     msg += f"━━━━━━━━━━━━━━\n"
@@ -39,37 +32,34 @@ async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = query.from_user
     product_id = int(query.data.split("_")[2])
     
-    session = Session()
-    try:
-        db_user = session.query(User).filter_by(id=user.id).first()
-        product = session.query(Product).filter_by(id=product_id).first()
+    async with AsyncSessionLocal() as session:
+        result_user = await session.execute(select(User).filter_by(id=user.id))
+        db_user = result_user.scalars().first()
+        
+        # Row locking here too
+        result_prod = await session.execute(select(Product).filter_by(id=product_id).with_for_update())
+        product = result_prod.scalars().first()
         
         if not product or product.stock <= 0:
             await query.answer("❌ 库存不足!", show_alert=True)
             return
 
-        # CHECK VOUCHERS
         cost = int(product.cost)
         if not db_user or db_user.vouchers < cost:
-            await query.answer(f"❌ 需要 {cost} 兑奖券! 您有 {db_user.vouchers}.", show_alert=True)
+            await query.answer(f"❌ 需要 {cost} 兑奖券! 您有 {db_user.vouchers if db_user else 0}.", show_alert=True)
             return
 
-        # Deduct Vouchers
         db_user.vouchers -= cost
         
-        # Calculate Win
         if random.random() < product.chance:
             product.stock -= 1
-            session.commit()
+            await session.commit()
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 中奖!!!!!🎉 {user.mention_html()} 花费 {cost} 兑奖券并赢得了 {product.name}**!",
+                text=f"🎉 中奖!!!!!🎉 {user.mention_html()} 花费 {cost} 兑奖券并赢得了 {product.name}!",
                 parse_mode='HTML'
             )
             await query.answer("🎉 中奖!!!!!", show_alert=True)
         else:
-            session.commit()
+            await session.commit()
             await query.answer("📉 本次没有中奖。再试一次!", show_alert=True)
-            
-    finally:
-        session.close()
