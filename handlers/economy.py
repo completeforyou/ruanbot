@@ -14,10 +14,10 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     # 1. Ensure user exists in DB
-    economy.get_or_create_user(user.id, user.username, user.first_name)
+    await economy.get_or_create_user(user.id, user.username, user.first_name)
     
     # 2. Update Message Count
-    new_msg_count = economy.increment_stats(user.id)
+    new_msg_count = await economy.increment_stats(user.id)
 
     if new_msg_count == 50:
         from handlers import invitation
@@ -31,7 +31,7 @@ async def track_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     CHANCE = 0.20
     roll = random.random()
     if roll < CHANCE:
-        economy.add_points(user.id, 1.0)
+        await economy.add_points(user.id, 1.0)
 
 async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -43,8 +43,8 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     # Get clean data from DB
-    balance = economy.get_user_balance(user.id)
-    vouchers = economy.get_user_vouchers(user.id)
+    balance = await economy.get_user_balance(user.id)
+    vouchers = await economy.get_user_vouchers(user.id)
     
     # Reply to user
     await update.message.reply_text(
@@ -58,7 +58,7 @@ async def handle_check_in_request(update: Update, context: ContextTypes.DEFAULT_
     """
     user = update.effective_user
     
-    success, msg, points = economy.process_check_in(user.id, user.username, user.first_name)
+    success, msg, points = await economy.process_check_in(user.id, user.username, user.first_name)
     
     reply_msg = None
     

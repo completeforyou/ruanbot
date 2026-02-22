@@ -40,8 +40,8 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += "现无商品\n"
             
         # 2. Buy Vouchers Button (Check if enabled)
-        if economy.is_voucher_buy_enabled():
-            v_price = economy.get_voucher_cost()
+        if await economy.is_voucher_buy_enabled():
+            v_price = await economy.get_voucher_cost()
             msg += f"\n🎟 兑换\n1 兑奖券 = {v_price} 积分"
             keyboard.append([InlineKeyboardButton(f"🎟 兑换 1 张兑奖券 ({v_price} 分)", callback_data="shop_buy_voucher")])
         else:
@@ -91,12 +91,12 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # A. Buying a Voucher
         if data == "shop_buy_voucher":
             # Check if enabled
-            if not economy.is_voucher_buy_enabled():
+            if not await economy.is_voucher_buy_enabled():
                 await query.answer("❌ 兑奖券购买功能已禁用!", show_alert=True)
                 await open_shop_menu(update, context) # Refresh to update UI
                 return
 
-            v_price = economy.get_voucher_cost()
+            v_price = await economy.get_voucher_cost()
             if db_user.points >= v_price:
                 db_user.points -= v_price
                 db_user.vouchers += 1

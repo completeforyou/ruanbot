@@ -6,9 +6,14 @@ TOKEN = os.getenv("TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Fix for Railway PostgreSQL URL
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+else:
+    # Use async SQLite for local testing
+    DATABASE_URL = "sqlite+aiosqlite:///local_test.db"
 # --- Admin Configuration ---
 # Railway Variable Format: 123456789,987654321
 # If variable is missing, it defaults to an empty list []

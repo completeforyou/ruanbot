@@ -37,7 +37,7 @@ async def request_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE
     payload = f"invite_{chat.id}_{user.id}"
     deep_link = f"https://t.me/{bot_username}?start={payload}"
 
-    config = economy.get_system_config()
+    config = await economy.get_system_config()
     reward_points = config['invite_reward_points']
 
     keyboard = [[InlineKeyboardButton("📩 点我私聊获取专属链接", url=deep_link)]]
@@ -239,9 +239,9 @@ async def check_and_reward_invite(invited_user, chat_id, context: ContextTypes.D
         session.close() # Close session before calling economy service
         
         # Award Points
-        config = economy.get_system_config()
+        config = await economy.get_system_config()
         reward_points = config['invite_reward_points']
-        economy.add_points(inviter_id, float(reward_points))
+        await economy.add_points(inviter_id, float(reward_points))
 
         # Notify Group
         await context.bot.send_message(

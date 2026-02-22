@@ -35,15 +35,19 @@ async def priority_spam_check(update: Update, context):
     if is_spam:
         raise ApplicationHandlerStop # Stop processing this update immediately
 
+async def post_init(application):
+    """Runs asynchronously before the bot starts polling."""
+    print("Initializing Database...")
+    await init_db()
+    print("Database Initialized!")
+
 if __name__ == '__main__':
-    # Initialize Database
-    init_db()
-    
+    # Initialize Database    
     if not config.TOKEN:
         print("Error: TOKEN not found in config.py")
         exit(1)
     req = HTTPXRequest(connection_pool_size=8, read_timeout=60, connect_timeout=60)
-    application = ApplicationBuilder().token(config.TOKEN).request(req).build()
+    application = ApplicationBuilder().token(config.TOKEN).request(req).post_init(post_init).build()
 
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
 

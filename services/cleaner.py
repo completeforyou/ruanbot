@@ -35,7 +35,7 @@ async def schedule_media_deletion(update: Update, context: ContextTypes.DEFAULT_
         return
 
     # 2. Get Config
-    config = economy.get_system_config()
+    config = await economy.get_system_config()
     delay = config.get('media_delete_time', 0)
     admin_exempt = config.get('admin_media_exempt', True)
 

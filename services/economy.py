@@ -1,128 +1,105 @@
 # services/economy.py
-from database import Session, SystemConfig, User
-from sqlalchemy import update, desc
+from database import AsyncSessionLocal
+from models.user import User
+from models.settings import SystemConfig
+from sqlalchemy import update, desc, select, func
 from datetime import datetime
 
+# --- CACHE ---
 _config_cache = None
 
-def get_or_create_user(user_id: int, username: str, full_name: str):
-    session = Session()
-    try:
-        user = session.query(User).filter_by(id=user_id).first()
-        if not user:
-            user = User(id=user_id, username=username, full_name=full_name)
-            session.add(user)
-            session.commit()
-            print(f"🆕 New user created: {full_name} ({user_id})")
-    finally:
-        session.close()
+async def get_or_create_user(user_id: int, username: str, full_name: str):
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(User).filter_by(id=user_id))
+            user = result.scalars().first()
+            if not user:
+                user = User(id=user_id, username=username, full_name=full_name)
+                session.add(user)
+                await session.commit()
+                print(f"🆕 New user created: {full_name} ({user_id})")
+        except Exception as e:
+            await session.rollback()
+            print(f"❌ DB Error get_or_create: {e}")
 
-def add_points(user_id: int, amount: float):
-    """
-    Atomic update: Safely increments points directly in the DB.
-    """
-    session = Session()
-    try:
-        # SQL equivalent: UPDATE users SET points = points + amount WHERE id = user_id
-        stmt = update(User).where(User.id == user_id).values(points=User.points + amount)
-        session.execute(stmt)
-        session.commit()
-        print(f"💰 Points Added! User: {user_id}, Amount: +{amount}")
-    except Exception as e:
-        session.rollback()
-        print(f"❌ DB Error adding points: {e}")
-    finally:
-        session.close()
+async def add_points(user_id: int, amount: float):
+    async with AsyncSessionLocal() as session:
+        try:
+            stmt = update(User).where(User.id == user_id).values(points=User.points + amount)
+            await session.execute(stmt)
+            await session.commit()
+            print(f"💰 Points Added! User: {user_id}, Amount: +{amount}")
+        except Exception as e:
+            await session.rollback()
+            print(f"❌ DB Error adding points: {e}")
 
-def increment_stats(user_id: int):
-    """
-    Atomic update for message counts.
-    """
-    session = Session()
-    try:
-        # We use returning() for maximum efficiency
-        stmt = update(User).where(User.id == user_id).values(
-            msg_count_total=User.msg_count_total + 1,
-            msg_count_daily=User.msg_count_daily + 1,
-            last_msg_date=datetime.utcnow()
-        ).returning(User.msg_count_total)
-        
-        result = session.execute(stmt)
-        new_total = result.scalar() # Extracts the number
-        session.commit()
-        return new_total or 0
-    except Exception as e:
-        print(f"❌ DB Error stats: {e}")
-        session.rollback()
-        return 0
-    finally:
-        session.close()
+async def increment_stats(user_id: int):
+    async with AsyncSessionLocal() as session:
+        try:
+            stmt = update(User).where(User.id == user_id).values(
+                msg_count_total=User.msg_count_total + 1,
+                msg_count_daily=User.msg_count_daily + 1,
+                last_msg_date=datetime.utcnow()
+            ).returning(User.msg_count_total)
+            
+            result = await session.execute(stmt)
+            new_total = result.scalar()
+            await session.commit()
+            return new_total or 0
+        except Exception as e:
+            print(f"❌ DB Error stats: {e}")
+            await session.rollback()
+            return 0
 
-def get_user_balance(user_id: int) -> float:
-    """
-    Fetches the current point balance for a user.
-    """
-    session = Session()
-    try:
-        user = session.query(User).filter_by(id=user_id).first()
+async def get_user_balance(user_id: int) -> float:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).filter_by(id=user_id))
+        user = result.scalars().first()
         return user.points if user else 0.0
-    finally:
-        session.close()
 
-def get_user_vouchers(user_id: int) -> int:
-    session = Session()
-    try:
-        user = session.query(User).filter_by(id=user_id).first()
+async def get_user_vouchers(user_id: int) -> int:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).filter_by(id=user_id))
+        user = result.scalars().first()
         return user.vouchers if user else 0
-    finally:
-        session.close()
 
-def add_vouchers(user_id: int, amount: int):
-    session = Session()
-    try:
-        # Check if user exists first to be safe
-        user = session.query(User).filter_by(id=user_id).first()
-        if user:
-            stmt = update(User).where(User.id == user_id).values(vouchers=User.vouchers + amount)
-            session.execute(stmt)
-            session.commit()
-            print(f"🎟 Voucher Update: User {user_id} +{amount}")
-        else:
-            print(f"❌ Failed to add vouchers: User {user_id} not found.")
-    except Exception as e:
-        print(f"DB Error: {e}")
-    finally:
-        session.close()
+async def add_vouchers(user_id: int, amount: int):
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(User).filter_by(id=user_id))
+            user = result.scalars().first()
+            if user:
+                stmt = update(User).where(User.id == user_id).values(vouchers=User.vouchers + amount)
+                await session.execute(stmt)
+                await session.commit()
+                print(f"🎟 Voucher Update: User {user_id} +{amount}")
+            else:
+                print(f"❌ Failed to add vouchers: User {user_id} not found.")
+        except Exception as e:
+            print(f"DB Error: {e}")
+            await session.rollback()
 
-def reset_daily_msg_counts(context=None):
-    """
-    Resets msg_count_daily for ALL users to 0. 
-    Can be run as a scheduled job.
-    """
-    session = Session()
-    try:
-        session.query(User).update({User.msg_count_daily: 0})
-        session.commit()
-        print("🔄 Daily message counts have been reset.")
-    except Exception as e:
-        print(f"❌ Error resetting daily counts: {e}")
-        session.rollback()
-    finally:
-        session.close()
+async def reset_daily_msg_counts(context=None):
+    async with AsyncSessionLocal() as session:
+        try:
+            stmt = update(User).values(msg_count_daily=0)
+            await session.execute(stmt)
+            await session.commit()
+            print("🔄 Daily message counts have been reset.")
+        except Exception as e:
+            print(f"❌ Error resetting daily counts: {e}")
+            await session.rollback()
 
-def get_leaderboard(sort_by='points', limit=10, offset=0):
-    """
-    Fetches a specific page of users sorted by 'points' or 'daily_msg'.
-    """
-    session = Session()
-    try:
+async def get_leaderboard(sort_by='points', limit=10, offset=0):
+    async with AsyncSessionLocal() as session:
         if sort_by in ['daily_msg', 'msg']:
-            users = session.query(User).order_by(desc(User.msg_count_daily)).limit(limit).offset(offset).all()
+            stmt = select(User).order_by(desc(User.msg_count_daily)).limit(limit).offset(offset)
         else:
-            # Default to points
-            users = session.query(User).order_by(desc(User.points)).limit(limit).offset(offset).all()
+            stmt = select(User).order_by(desc(User.points)).limit(limit).offset(offset)
         
-        # Convert to dictionary immediately to prevent "Detached Instance" errors
+        result = await session.execute(stmt)
+        users = result.scalars().all()
+        
         results = []
         for u in users:
             results.append({
@@ -131,131 +108,115 @@ def get_leaderboard(sort_by='points', limit=10, offset=0):
                 'msg_count_daily': u.msg_count_daily
             })
         return results
-    finally:
-        session.close()
 
-def get_total_ranked_users(max_limit=30):
-    """
-    Gets the total number of users for the leaderboard, capped at max_limit.
-    """
-    session = Session()
-    try:
-        count = session.query(User).count()
-        return min(count, max_limit) # Cap it at 30 (or whatever MAX_ITEMS is)
-    finally:
-        session.close()
-        
+async def get_total_ranked_users(max_limit=30):
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.count(User.id)))
+        count = result.scalar() or 0
+        return min(count, max_limit)
 
-def get_system_config():
-    """Returns a dictionary of all system settings."""
+async def get_system_config():
     global _config_cache
     if _config_cache:
         return _config_cache
-    
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        if not config:
-            config = SystemConfig(id=1)
-            session.add(config)
-            session.commit()
-            session.refresh(config)
-            
-        _config_cache = {
-            'check_in_points': config.check_in_points,
-            'spam_limit': config.spam_limit,
-            'check_in_points': config.check_in_points,
-            'check_in_limit': config.check_in_limit,
-            'voucher_cost': config.voucher_cost,
-            'voucher_buy_enabled': config.voucher_buy_enabled,
-            'invite_reward_points': config.invite_reward_points,
-            'max_daily_points': config.max_daily_points,
-            'spam_threshold': config.spam_threshold,
-            'spam_limit': config.spam_limit,
-            'media_delete_time': getattr(config, 'media_delete_time', 60),
-            'admin_media_exempt': getattr(config, 'admin_media_exempt', True)
-        }
-        return _config_cache
-    finally:
-        session.close()
 
-def update_system_config(**kwargs):
-    """
-    Generic updater. Example: update_system_config(invite_reward_points=50)
-    """
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(SystemConfig).filter_by(id=1))
+            config = result.scalars().first()
+            if not config:
+                config = SystemConfig(id=1)
+                session.add(config)
+                await session.commit()
+                await session.refresh(config)
+                
+            _config_cache = {
+                'check_in_points': config.check_in_points,
+                'check_in_limit': config.check_in_limit,
+                'voucher_cost': config.voucher_cost,
+                'voucher_buy_enabled': config.voucher_buy_enabled,
+                'invite_reward_points': config.invite_reward_points,
+                'max_daily_points': config.max_daily_points,
+                'spam_threshold': config.spam_threshold,
+                'spam_limit': config.spam_limit,
+                'media_delete_time': config.media_delete_time,
+                'admin_media_exempt': config.admin_media_exempt
+            }
+            return _config_cache
+        except Exception as e:
+            print(f"❌ Error fetching config: {e}")
+            return {}
+
+async def update_system_config(**kwargs):
     global _config_cache
-    session = Session()
-    try:
-        config = session.query(SystemConfig).filter_by(id=1).first()
-        if not config:
-            config = SystemConfig(id=1)
-            session.add(config)
-        
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-        
-        session.commit()
-        _config_cache = None  # Clear the cache so it fetches fresh data next time!
-        return True
-    except Exception as e:
-        print(f"Config Update Error: {e}")
-        return False
-    finally:
-        session.close()
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(SystemConfig).filter_by(id=1))
+            config = result.scalars().first()
+            if not config:
+                config = SystemConfig(id=1)
+                session.add(config)
+            
+            for key, value in kwargs.items():
+                if hasattr(config, key):
+                    setattr(config, key, value)
+            
+            await session.commit()
+            _config_cache = None 
+            return True
+        except Exception as e:
+            print(f"Config Update Error: {e}")
+            await session.rollback()
+            return False
 
-def get_voucher_cost() -> int:
-    return get_system_config()['voucher_cost']
+async def get_voucher_cost() -> int:
+    conf = await get_system_config()
+    return conf.get('voucher_cost', 500)
 
-def is_voucher_buy_enabled() -> bool:
-    return get_system_config()['voucher_buy_enabled']
+async def is_voucher_buy_enabled() -> bool:
+    conf = await get_system_config()
+    return conf.get('voucher_buy_enabled', False)
 
-def set_voucher_buy_status(enabled: bool):
-    return update_system_config(voucher_buy_enabled=enabled)
+async def set_voucher_buy_status(enabled: bool):
+    return await update_system_config(voucher_buy_enabled=enabled)
 
-def set_voucher_cost(cost: int):
-    return update_system_config(voucher_cost=cost)
+async def set_voucher_cost(cost: int):
+    return await update_system_config(voucher_cost=cost)
 
-def set_check_in_config(points: float, limit: int):
-    return update_system_config(check_in_points=points, check_in_limit=limit)
+async def set_check_in_config(points: float, limit: int):
+    return await update_system_config(check_in_points=points, check_in_limit=limit)
 
-def process_check_in(user_id: int, username: str, full_name: str):
-    # Update this to use the new config fetcher
-    session = Session()
-    try:
-        user = session.query(User).filter_by(id=user_id).first()
-        if not user:
-            user = User(id=user_id, username=username, full_name=full_name)
-            session.add(user)
-        
-        # Get Config
-        sys_conf = session.query(SystemConfig).filter_by(id=1).first()
-        if not sys_conf:
-            sys_conf = SystemConfig(id=1, check_in_points=10.0, check_in_limit=1)
-            session.add(sys_conf)
-            session.commit()
+async def process_check_in(user_id: int, username: str, full_name: str):
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(User).filter_by(id=user_id))
+            user = result.scalars().first()
+            
+            if not user:
+                user = User(id=user_id, username=username, full_name=full_name)
+                session.add(user)
+            
+            sys_conf = await get_system_config()
+            check_in_limit = sys_conf.get('check_in_limit', 1)
+            check_in_points = sys_conf.get('check_in_points', 10.0)
 
-        # Check Date
-        now = datetime.now()
-        if user.last_check_in_date:
-            if user.last_check_in_date.date() < now.date():
-                user.daily_check_in_count = 0
-        
-        # Check Limit
-        if user.daily_check_in_count >= sys_conf.check_in_limit:
-            return False, f"📅 您今天已经签到 {sys_conf.check_in_limit} 次了!", 0.0
-        
-        # Award
-        points_to_add = sys_conf.check_in_points
-        user.points += points_to_add
-        user.daily_check_in_count += 1
-        user.last_check_in_date = now
-        
-        session.commit()
-        return True, "✅ 签到成功!", points_to_add
-        
-    except Exception as e:
-        print(f"Check-in Error: {e}")
-        return False, "❌ System error.", 0.0
-    finally:
-        session.close()
+            now = datetime.now()
+            if user.last_check_in_date:
+                if user.last_check_in_date.date() < now.date():
+                    user.daily_check_in_count = 0
+            
+            if user.daily_check_in_count >= check_in_limit:
+                return False, f"📅 您今天已经签到 {check_in_limit} 次了!", 0.0
+            
+            points_to_add = check_in_points
+            user.points += points_to_add
+            user.daily_check_in_count += 1
+            user.last_check_in_date = now
+            
+            await session.commit()
+            return True, "✅ 签到成功!", points_to_add
+            
+        except Exception as e:
+            print(f"Check-in Error: {e}")
+            await session.rollback()
+            return False, "❌ System error.", 0.0

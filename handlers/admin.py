@@ -57,15 +57,15 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "admin_config_menu":
         await show_config_menu(update)
     elif data == "admin_toggle_voucher":
-        current = economy.is_voucher_buy_enabled()
-        economy.set_voucher_buy_status(not current)
+        current = await economy.is_voucher_buy_enabled()
+        await economy.set_voucher_buy_status(not current)
         await show_voucher_menu(update)
     elif data == "admin_prod_remove":
         await admin_products.start_remove_product(update, context)
     elif data == "admin_toggle_ame":
-        conf = economy.get_system_config()
+        conf = await economy.get_system_config()
         current_status = conf.get('admin_media_exempt', True)
-        economy.update_system_config(admin_media_exempt=not current_status)
+        await economy.update_system_config(admin_media_exempt=not current_status)
         await show_config_menu(update)
 
 # --- SUB-MENUS ---
@@ -88,8 +88,8 @@ async def show_shop_menu(update: Update):
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_voucher_menu(update: Update):
-    is_enabled = economy.is_voucher_buy_enabled()
-    current_cost = economy.get_voucher_cost()
+    is_enabled = await economy.is_voucher_buy_enabled()
+    current_cost = await economy.get_voucher_cost()
     status_icon = "✅ 开启" if is_enabled else "🔴 关闭"
     toggle_btn_text = "关闭购买模式" if is_enabled else "开启购买模式"
     
@@ -106,7 +106,7 @@ async def show_voucher_menu(update: Update):
     await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_config_menu(update: Update):
-    conf = economy.get_system_config()
+    conf = await economy.get_system_config()
     ame_status = "✅ 开启" if conf.get('admin_media_exempt', True) else "🔴 关闭"
     text = (
         f"⚙️ 系统配置\n\n"
@@ -194,21 +194,21 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         # --- LOGIC MAPPING ---
         if s_type == "admin_set_vcost":
-            economy.update_system_config(voucher_cost=val)
+            await economy.update_system_config(voucher_cost=val)
         elif s_type == "admin_set_cpts":
-            economy.update_system_config(check_in_points=val)
+            await economy.update_system_config(check_in_points=val)
         elif s_type == "admin_set_clim":
-            economy.update_system_config(check_in_limit=val)
+            await economy.update_system_config(check_in_limit=val)
         elif s_type == "admin_set_invite":
-            economy.update_system_config(invite_reward_points=val)
+            await economy.update_system_config(invite_reward_points=val)
         elif s_type == "admin_set_daily":
-            economy.update_system_config(max_daily_points=val)
+            await economy.update_system_config(max_daily_points=val)
         elif s_type == "admin_set_sthr":
-            economy.update_system_config(spam_threshold=val)
+            await economy.update_system_config(spam_threshold=val)
         elif s_type == "admin_set_slim":
-            economy.update_system_config(spam_limit=val)
+            await economy.update_system_config(spam_limit=val)
         elif s_type == "admin_set_mdel":
-            economy.update_system_config(media_delete_time=val)
+            await economy.update_system_config(media_delete_time=val)
                 
         keyboard = [[InlineKeyboardButton("🔙 返回控制面板", callback_data="admin_home")]]
         await update.message.reply_text(
@@ -275,7 +275,7 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
     
     if target_id and amount:
-        economy.add_vouchers(target_id, amount)
+        await economy.add_vouchers(target_id, amount)
         user_mention = mention_html(target_id, target_name)
         await update.message.reply_text(f"✅ {user_mention} 获得 {amount} 兑奖券", parse_mode='HTML')
     else:
