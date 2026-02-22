@@ -214,7 +214,7 @@ async def save_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
-        
+        return ConversationHandler.END
     except ValueError:
         await update.message.reply_text("❌ 无效格式。请输入一个数字.")
         return WAIT_INPUT

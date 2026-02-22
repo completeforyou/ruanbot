@@ -21,13 +21,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 async def global_message_handler(update, context):
-    # 1. Check Spam
-    is_spam = await moderation.check_spam(update, context)
-    if is_spam:
-        return
-    # 2. Track Activity
+    
     await economy_handler.track_activity(update, context)
-    # 3. Check for Media Deletion
+    
     await cleaner.schedule_media_deletion(update, context)
 
 async def priority_spam_check(update: Update, context):
