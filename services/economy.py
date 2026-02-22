@@ -3,6 +3,8 @@ from database import Session, SystemConfig, User
 from sqlalchemy import update, desc
 from datetime import datetime
 
+_config_cache = None
+
 def get_or_create_user(user_id: int, username: str, full_name: str):
     session = Session()
     try:
@@ -108,18 +110,17 @@ def reset_daily_msg_counts(context=None):
     finally:
         session.close()
 
-def get_leaderboard(sort_by='points', limit=30):
+def get_leaderboard(sort_by='points', limit=10, offset=0):
     """
-    Fetches top users sorted by 'points' or 'daily_msg'.
-    Returns a list of User objects.
+    Fetches a specific page of users sorted by 'points' or 'daily_msg'.
     """
     session = Session()
     try:
         if sort_by in ['daily_msg', 'msg']:
-            users = session.query(User).order_by(desc(User.msg_count_daily)).limit(limit).all()
+            users = session.query(User).order_by(desc(User.msg_count_daily)).limit(limit).offset(offset).all()
         else:
             # Default to points
-            users = session.query(User).order_by(desc(User.points)).limit(limit).all()
+            users = session.query(User).order_by(desc(User.points)).limit(limit).offset(offset).all()
         
         # Convert to dictionary immediately to prevent "Detached Instance" errors
         results = []
@@ -132,10 +133,25 @@ def get_leaderboard(sort_by='points', limit=30):
         return results
     finally:
         session.close()
+
+def get_total_ranked_users(max_limit=30):
+    """
+    Gets the total number of users for the leaderboard, capped at max_limit.
+    """
+    session = Session()
+    try:
+        count = session.query(User).count()
+        return min(count, max_limit) # Cap it at 30 (or whatever MAX_ITEMS is)
+    finally:
+        session.close()
         
 
 def get_system_config():
     """Returns a dictionary of all system settings."""
+    global _config_cache
+    if _config_cache:
+        return _config_cache
+    
     session = Session()
     try:
         config = session.query(SystemConfig).filter_by(id=1).first()
@@ -145,7 +161,9 @@ def get_system_config():
             session.commit()
             session.refresh(config)
             
-        return {
+        _config_cache = {
+            'check_in_points': config.check_in_points,
+            'spam_limit': config.spam_limit,
             'check_in_points': config.check_in_points,
             'check_in_limit': config.check_in_limit,
             'voucher_cost': config.voucher_cost,
@@ -157,6 +175,7 @@ def get_system_config():
             'media_delete_time': getattr(config, 'media_delete_time', 60),
             'admin_media_exempt': getattr(config, 'admin_media_exempt', True)
         }
+        return _config_cache
     finally:
         session.close()
 
@@ -164,6 +183,7 @@ def update_system_config(**kwargs):
     """
     Generic updater. Example: update_system_config(invite_reward_points=50)
     """
+    global _config_cache
     session = Session()
     try:
         config = session.query(SystemConfig).filter_by(id=1).first()
@@ -176,6 +196,7 @@ def update_system_config(**kwargs):
                 setattr(config, key, value)
         
         session.commit()
+        _config_cache = None  # Clear the cache so it fetches fresh data next time!
         return True
     except Exception as e:
         print(f"Config Update Error: {e}")

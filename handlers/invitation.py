@@ -13,6 +13,11 @@ from services import economy
 # Format: {invited_user_id: inviter_user_id}
 _pending_invites = {}
 
+def clear_pending_invite(user_id: int):
+    """Removes a user from the pending invite list if they fail verification."""
+    if user_id in _pending_invites:
+        del _pending_invites[user_id]
+
 async def request_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Command: 专属链接 (Used in the group)
@@ -219,6 +224,7 @@ async def check_and_reward_invite(invited_user, chat_id, context: ContextTypes.D
         ).first()
 
         if not referral:
+            session.close()
             return # They either weren't invited, or got rewarded already!
 
         # Mark as rewarded

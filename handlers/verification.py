@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPer
 from telegram.ext import ContextTypes
 from services import verification, cleaner
 from database import Session, User, WelcomeConfig
-from handlers.invitation import register_verified_invite
+from handlers.invitation import register_verified_invite, clear_pending_invite
 
 def _is_effective_member(member_obj) -> bool:
     """
@@ -103,6 +103,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Verify pending status
             if verification.get_verification(user_id):
                 verification.clear_verification(user_id)
+                clear_pending_invite(user_id)
                 try:
                     await context.bot.ban_chat_member(chat_id, user_id)
                     await context.bot.unban_chat_member(chat_id, user_id)
@@ -144,6 +145,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     # --- RULE 1: Anti-Bot Check (< 1 second) ---
     if time_taken < 1.0:
         await query.answer("🤖 系统判定为机器人操作！点击速度异常", show_alert=True)
+        clear_pending_invite(target_user_id)
         try:
             await chat.ban_member(target_user_id)
             await chat.unban_member(target_user_id)
@@ -232,6 +234,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             print(f"Unrestrict/Welcome failed: {e}")
     else:
         await query.answer("❌ 答案错误", show_alert=True)
+        clear_pending_invite(target_user_id)
         try:
             await chat.ban_member(target_user_id)
             await chat.unban_member(target_user_id)

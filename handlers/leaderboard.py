@@ -34,24 +34,27 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     """
     Generates the text and keyboard, then sends or edits the message.
     """
-    # 1. Fetch Data (Passes 'msg' or 'points' directly)
-    users = economy.get_leaderboard(sort_by=sort_by, limit=MAX_ITEMS)
+    # 1. Calculate Offsets
+    start_idx = page * ITEMS_PER_PAGE
+
+    # 2. Fetch EXACTLY 10 users from the DB (Super Fast!)
+    page_users = economy.get_leaderboard(sort_by=sort_by, limit=ITEMS_PER_PAGE, offset=start_idx)
+    
+    # 3. Fetch Total Pages
+    total_users = economy.get_total_ranked_users(max_limit=MAX_ITEMS)
+    total_pages = math.ceil(total_users / ITEMS_PER_PAGE)
+    if total_pages == 0: total_pages = 1
     
     # Handle empty DB
-    if not users:
+    if not page_users and page == 0:
         text = "📊 还没有用户数据!"
         if is_new:
             await update.message.reply_text(text)
         else:
             await update.callback_query.edit_message_text(text)
         return
-
-    # 2. Slice for Pagination
-    start_idx = page * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    page_users = users[start_idx:end_idx]
     
-    # 3. Build Text
+    # 4. Build Text
     title = "🏆 积分排行榜" if sort_by == 'points' else "🗣 活跃榜"
     text = f"<b>{title} (Top {MAX_ITEMS})</b>\n"
     text += "━━━━━━━━━━━━━━\n"
@@ -61,7 +64,6 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     for i, user in enumerate(page_users):
         rank = rank_start + i
         
-        # CHANGED: Access dictionary keys instead of object attributes
         raw_name = user['full_name'] if user['full_name'] else "User"
         name = raw_name.replace("<", "").replace(">", "") # Sanitize HTML
         if len(name) > 6:
@@ -97,9 +99,9 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
         text += f"<code>{line}</code>\n"
             
     text += "━━━━━━━━━━━━━━\n"
-    text += f"📄 页数: {page + 1}/{math.ceil(len(users)/ITEMS_PER_PAGE)}"
+    text += f"📄 页数: {page + 1}/{total_pages}"
 
-    # 4. Build Buttons
+    # 5. Build Buttons
     keyboard = []
     nav_row = []
     
@@ -116,7 +118,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
         nav_row.append(InlineKeyboardButton("🔄 看积分", callback_data=f"lb_points_0"))
 
     # Next Button
-    if end_idx < len(users):
+    if (page + 1) < total_pages:
         nav_row.append(InlineKeyboardButton("➡️", callback_data=f"lb_{sort_by}_{page+1}"))
     else:
         nav_row.append(InlineKeyboardButton("⬛", callback_data="ignore"))
@@ -125,7 +127,7 @@ async def render_leaderboard(update: Update, page: int, sort_by: str, is_new: bo
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # 5. Send
+    # 6. Send
     if is_new:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
     else:

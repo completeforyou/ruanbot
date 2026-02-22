@@ -2,6 +2,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from services import economy
+from utils.admin_cache import is_user_admin
 
 async def delete_message_job(context: ContextTypes.DEFAULT_TYPE):
     """The job that runs after X seconds to delete the message."""
@@ -42,12 +43,13 @@ async def schedule_media_deletion(update: Update, context: ContextTypes.DEFAULT_
     if delay > 0:
         # --- NEW: Check if user is an admin and exempt them ---
         if admin_exempt and update.effective_chat.type in ['group', 'supergroup']:
-            try:
-                member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-                if member.status in ['administrator', 'creator']:
-                    return # Skip deletion for admins!
-            except Exception as e:
-                pass # If we can't check admin status, just proceed with deletion to be safe
+            is_admin = await is_user_admin(
+                update.effective_chat.id, 
+                update.effective_user.id, 
+                context.bot
+            )
+            if is_admin:
+                return # Skip deletion for admins!
         # --------------------------------------------------------
 
         context.job_queue.run_once(

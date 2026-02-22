@@ -3,6 +3,7 @@ from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
 from services import antispam, economy
+from utils.admin_cache import is_user_admin
 
 async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -34,11 +35,7 @@ async def check_spam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
     
     if is_spam:
         # 2. Check Admin Status
-        try:
-            member = await context.bot.get_chat_member(chat.id, user.id)
-            is_admin = member.status in ['administrator', 'creator']
-        except:
-            is_admin = False
+        is_admin = await is_user_admin(chat.id, user.id, context.bot)
 
         # 3. Apply Punishment
         if is_admin:
