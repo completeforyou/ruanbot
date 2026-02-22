@@ -2,6 +2,8 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.helpers import mention_html
+import re
+from telegram.constants import ChatAction
 from utils.decorators import admin_only, private_chat_only
 from services import economy
 from database import Session, Product
@@ -282,6 +284,82 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
             "2. 通过ID: `/give <ID> <数量>`", 
             parse_mode='Markdown'
         )
+
+@admin_only
+@private_chat_only
+async def send_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /send <link> <optional text>
+    Can be used by replying to a message (to forward media/text) or as a standalone command.
+    """
+    # 1. Parse Arguments & Link
+    args_text = " ".join(context.args) if context.args else ""
+    target_chat_id = None
+    reply_target_message_id = None
+
+    # Regex handles both Private (t.me/c/123/456) and Public (t.me/groupname/456) links
+    link_match = re.search(r'https://t\.me/(?:c/(\d+)|([a-zA-Z0-9_]+))/(\d+)', args_text)
+    
+    if link_match:
+        private_id = link_match.group(1)
+        public_id = link_match.group(2)
+        message_id = int(link_match.group(3))
+
+        if private_id:
+            target_chat_id = f"-100{private_id}"
+        elif public_id:
+            target_chat_id = f"@{public_id}"
+            
+        reply_target_message_id = message_id
+        # Remove the link from the text we want to send
+        args_text = re.sub(r'https://t\.me/(?:c/\d+|[a-zA-Z0-9_]+)/\d+', '', args_text).strip()
+    else:
+        await update.message.reply_text("⚠️ 请提供一个有效的群组消息链接 (Please provide a valid message link).")
+        return
+
+    # 2. Determine WHAT to send (Replied media vs. Typed text)
+    reply_msg = update.message.reply_to_message
+
+    try:
+        if reply_msg:
+            # --- SENDING MEDIA ---
+            caption = args_text if args_text else reply_msg.caption
+            
+            if reply_msg.photo:
+                await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_PHOTO)
+                await context.bot.send_photo(chat_id=target_chat_id, photo=reply_msg.photo[-1].file_id, caption=caption, reply_to_message_id=reply_target_message_id)
+            
+            elif reply_msg.video:
+                await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_VIDEO)
+                await context.bot.send_video(chat_id=target_chat_id, video=reply_msg.video.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
+            
+            elif reply_msg.document:
+                await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_DOCUMENT)
+                await context.bot.send_document(chat_id=target_chat_id, document=reply_msg.document.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
+            
+            elif reply_msg.audio:
+                await context.bot.send_chat_action(chat_id=target_chat_id, action=ChatAction.UPLOAD_AUDIO)
+                await context.bot.send_audio(chat_id=target_chat_id, audio=reply_msg.audio.file_id, caption=caption, reply_to_message_id=reply_target_message_id)
+            
+            elif reply_msg.text:
+                # If they replied to a text message
+                text_to_send = args_text if args_text else reply_msg.text
+                await context.bot.send_message(chat_id=target_chat_id, text=text_to_send, reply_to_message_id=reply_target_message_id)
+            else:
+                await update.message.reply_text("⚠️ 不支持的媒体类型 (Unsupported media type).")
+                return
+        elif args_text:
+            # --- SENDING PLAIN TEXT ---
+            await context.bot.send_message(chat_id=target_chat_id, text=args_text, reply_to_message_id=reply_target_message_id)
+        else:
+            await update.message.reply_text("⚠️ 请输入要发送的文本，或回复一条包含媒体的消息。")
+            return
+
+        await update.message.reply_text("✅ 消息已发送至群组 (Message sent to group).")
+
+    except Exception as e:
+        print(f"[ERROR] Failed to send message: {e}")
+        await update.message.reply_text(f"❌ 发送失败 (Failed to send): {e}")
 
 # Export the handler
 settings_conv_handler = ConversationHandler(
