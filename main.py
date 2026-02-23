@@ -10,6 +10,7 @@ from handlers import moderation, economy as economy_handler
 from services.antispam import cleanup_cache
 from services import cleaner, economy as economy_service
 from datetime import time
+from webapp_server import start_web_server
 
 # Logging Setup
 logging.basicConfig(
@@ -36,6 +37,8 @@ async def post_init(application):
     print("Initializing Database...")
     await init_db()
     print("Database Initialized!")
+    print("Starting Web Server...")
+    await start_web_server()
 
 if __name__ == '__main__':
     # Initialize Database    

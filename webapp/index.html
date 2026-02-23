@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>幸运大转盘</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: var(--tg-theme-bg-color, #f4f4f4);
+            color: var(--tg-theme-text-color, #333);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin-bottom: 30px;
+        }
+
+        /* The canvas that draws the wheel */
+        #wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            /* Smooth spinning transition */
+            transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        /* The pointer needle in the center/top */
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #ff4757;
+            z-index: 10;
+        }
+
+        .center-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            background-color: white;
+            border-radius: 50%;
+            border: 4px solid #3498db;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        button.spin-btn {
+            background-color: var(--tg-theme-button-color, #3498db);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        button.spin-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #result-text {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            min-height: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 id="greeting">🎰 付费抽奖 🎰</h2>
+
+    <div class="wheel-container">
+        <div class="pointer"></div>
+        <canvas id="wheel" width="400" height="400"></canvas>
+        <div class="center-circle">GO</div>
+    </div>
+
+    <button class="spin-btn" onclick="startSpin()" id="spinBtn">花费 500 积分抽奖</button>
+    <div id="result-text"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            document.getElementById('greeting').innerText = `欢迎, ${tg.initDataUnsafe.user.first_name}!`;
+        }
+
+        let sectors = [];
+        const canvas = document.getElementById("wheel");
+        const ctx = canvas.getContext("2d");
+        let currentRotation = 0;
+        let isSpinning = false;
+
+        async function loadWheelData() {
+            try {
+                const response = await fetch('/api/wheel_data');
+                sectors = await response.json();
+                
+                const colors = ["#f8a5c2", "#786fa6", "#f19066", "#546de5", "#e15f41", "#3dc1d3"];
+                sectors.forEach((sector, i) => {
+                    sector.color = colors[i % colors.length];
+                });
+                
+                drawWheel();
+            } catch (error) {
+                document.getElementById('result-text').innerText = "加载错误，请重试";
+            }
+        }
+
+        function drawWheel() {
+            if (sectors.length === 0) return;
+            ctx.clearRect(0, 0, 400, 400);
+
+            let startAngle = 0; // Start at 0 radians
+
+            sectors.forEach((sector, i) => {
+                // The size of the slice is directly proportional to its chance (0.0 to 1.0)
+                const sliceAngle = sector.chance * 2 * Math.PI; 
+                
+                ctx.beginPath();
+                ctx.fillStyle = sector.color;
+                ctx.moveTo(200, 200);
+                ctx.arc(200, 200, 200, startAngle, startAngle + sliceAngle);
+                ctx.lineTo(200, 200);
+                ctx.fill();
+
+                ctx.save();
+                ctx.translate(200, 200);
+                // Rotate to the middle of the slice to draw the text
+                ctx.rotate(startAngle + (sliceAngle / 2));
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 20px sans-serif";
+                
+                let label = sector.name.length > 8 ? sector.name.substring(0,8) + ".." : sector.name;
+                ctx.fillText(label, 180, 10);
+                ctx.restore();
+
+                startAngle += sliceAngle; // Move the start angle forward for the next slice
+            });
+        }
+
+        async function startSpin() {
+            if (isSpinning) return;
+            isSpinning = true;
+            document.getElementById('result-text').innerText = "抽奖中...";
+            document.getElementById('spinBtn').style.opacity = "0.5";
+
+            try {
+                const response = await fetch('/api/spin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData: tg.initData }) 
+                });
+                
+                const result = await response.json();
+
+                if (!response.ok) {
+                    tg.showAlert(result.error || "发生错误!");
+                    isSpinning = false;
+                    document.getElementById('spinBtn').style.opacity = "1";
+                    return;
+                }
+
+                const winningIndex = result.winning_index;
+                
+                // --- FIND THE EXACT ANGLE OF THE WINNING SLICE ---
+                let angleToWinnerCenter = 0;
+                let tempChanceSum = 0;
+                
+                for(let i = 0; i < winningIndex; i++){
+                    tempChanceSum += sectors[i].chance;
+                }
+                // Add half of the winning slice's chance to point to its center
+                let centerChance = tempChanceSum + (sectors[winningIndex].chance / 2);
+                let targetDegree = centerChance * 360; 
+                
+                const extraSpins = 1800; // 5 full spins
+                const stopAngle = extraSpins + (360 - targetDegree) - 90; // -90 because the pointer is at the top
+                
+                currentRotation += stopAngle;
+                canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+                setTimeout(() => {
+                    isSpinning = false;
+                    document.getElementById('spinBtn').style.opacity = "1";
+                    
+                    const wonName = sectors[winningIndex].name;
+                    document.getElementById('result-text').innerText = `🎉 结果: ${wonName}`;
+                    
+                    if (winningIndex === sectors.length - 1) {
+                         tg.HapticFeedback.notificationOccurred("warning"); 
+                    } else {
+                         tg.HapticFeedback.notificationOccurred("success"); 
+                    }
+                }, 4000);
+
+            } catch (error) {
+                tg.showAlert("网络错误，请稍后重试。");
+                isSpinning = false;
+                document.getElementById('spinBtn').style.opacity = "1";
+            }
+        }
+
+        loadWheelData();
+    </script>
+</body>
+</html>

@@ -1,9 +1,11 @@
 # handlers/redemption.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes
 from database import AsyncSessionLocal, Product, User
 from sqlalchemy import select
 import random
+
+WEB_APP_URL = "https://ruanbot-production.up.railway.app"
 
 async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows only LOTTERY items (Cost = Vouchers)."""
@@ -19,12 +21,14 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(msg, parse_mode='Markdown')
         return
 
-    keyboard = []
+    
     for p in products:
         cost = int(p.cost)
         msg += f"🎁 \n{p.name}\n   • 花费: 🎟 {cost} 兑奖券\n"
-        keyboard.append([InlineKeyboardButton(f"🎲 抽奖: {p.name}", callback_data=f"lottery_draw_{p.id}")])
-
+    msg += "\n👇 点击下方按钮进入抽奖页面！"
+    keyboard = [
+        [InlineKeyboardButton("🎰 开启大转盘", web_app=WebAppInfo(url=WEB_APP_URL))]
+    ]
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
