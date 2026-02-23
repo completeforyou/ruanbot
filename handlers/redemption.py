@@ -22,8 +22,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     for p in products:
-        cost = int(p.cost)
-        msg += f"🎁 {p.name}\n   • 花费: 🎟 {cost} 兑奖券\n"
+        msg += f"🎁 现有奖品{p.name}\n"
 
     # Check Chat Type 
     if update.effective_chat.type == 'private':
