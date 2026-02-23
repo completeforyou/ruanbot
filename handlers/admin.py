@@ -22,7 +22,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = [
         [
-            InlineKeyboardButton("🏪 商城 & 刮刮乐", callback_data="admin_shop_menu"),
+            InlineKeyboardButton("🏪 商城 ", callback_data="admin_shop_menu"),
             InlineKeyboardButton("🎟 兑奖券", callback_data="admin_voucher_menu")
         ],
         [

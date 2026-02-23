@@ -21,9 +21,9 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Ask Type
     keyboard = [
-        [InlineKeyboardButton("🛒 积分商店 (100% 获得)", callback_data="type_shop")],
-        [InlineKeyboardButton("🃏 积分刮刮乐 (概率获得)", callback_data="type_scratcher")], 
-        [InlineKeyboardButton("🎟 代币抽奖 (概率获得)", callback_data="type_lottery")],
+        [InlineKeyboardButton("🛒 兑换商城 (100% 获得)", callback_data="type_shop")],
+        [InlineKeyboardButton("🃏 娱乐抽奖 (概率获得)", callback_data="type_scratcher")], 
+        [InlineKeyboardButton("🎟 付费抽奖 (概率获得)", callback_data="type_lottery")],
         [InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]
     ]
     
