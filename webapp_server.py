@@ -82,12 +82,12 @@ async def spin_wheel(request):
         products = result_prod.scalars().all()
         
         if not products:
-            return web.json_response({"error": "No active lotteries"}, status=400)
+            return web.json_response({"error": "现在无抽奖"}, status=400)
 
         spin_cost = int(products[0].cost)
         
         if db_user.vouchers < spin_cost:
-            return web.json_response({"error": f"Insufficient Vouchers. Needs {spin_cost} 🎟"}, status=400)
+            return web.json_response({"error": f"兑奖券不够, 需要 {spin_cost} 🎟"}, status=400)
 
         db_user.vouchers -= spin_cost
         
