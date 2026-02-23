@@ -22,7 +22,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = []
     for p in products:
         cost = int(p.cost)
-        msg += f"🎁 \n{p.name}\n   • 花费: 🎟 {cost} 兑奖券\n   • 库存: {p.stock}\n\n"
+        msg += f"🎁 \n{p.name}\n   • 花费: 🎟 {cost} 兑奖券\n"
         keyboard.append([InlineKeyboardButton(f"🎲 抽奖: {p.name}", callback_data=f"lottery_draw_{p.id}")])
 
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
@@ -41,7 +41,7 @@ async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE
         product = result_prod.scalars().first()
         
         if not product or product.stock <= 0:
-            await query.answer("❌ 库存不足!", show_alert=True)
+            await query.answer("❌ 现在无抽奖", show_alert=True)
             return
 
         cost = int(product.cost)
