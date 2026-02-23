@@ -146,6 +146,7 @@
                 // Map the Python data into Winwheel's required format
                 let winwheelSegments = wheelData.map((sector, i) => {
                     return {
+                        'id': sector.id,
                         'fillStyle': colors[i % colors.length],
                         'text': sector.name.length > 8 ? sector.name.substring(0,8) + ".." : sector.name,
                         'size': sector.chance * 360, // Directly converts chance (0.0 - 1.0) into degrees!
@@ -202,14 +203,19 @@
                     return;
                 }
 
-                const winningIndex = result.winning_index;
+                const winningId = result.winning_id;
+                let targetSegment = 1; // Default to first segment if not found
                 
-                // Winwheel segments are 1-indexed (so index 0 is segment 1)
-                const targetSegment = winningIndex + 1;
+                for (let i = 1; i <= theWheel.numSegments; i++) {
+                    if (theWheel.segments[i].id === winningId) {
+                        targetSegment = i;
+                        break;
+                    }
+                }
                 
                 // Reset the wheel's rotation just in case they are spinning a 2nd time
                 theWheel.stopAnimation(false);
-                theWheel.rotationAngle = 0;
+                theWheel.rotationAngle = theWheel.rotationAngle % 360;
 
                 // Winwheel magically calculates the exact angle to land on!
                 let stopAt = theWheel.getRandomForSegment(targetSegment);

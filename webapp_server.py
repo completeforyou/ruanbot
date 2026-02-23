@@ -47,12 +47,18 @@ async def get_wheel_data(request):
         )
         products = result.scalars().all()
     
-    # Calculate the total chance of all items
     total_win_chance = sum(p.chance for p in products)
-    lose_chance = max(0.0, 1.0 - total_win_chance) # Whatever is left over from 100%
+    
+    # NEW: Normalize chances if they exceed 100% (1.0)
+    if total_win_chance > 1.0:
+        for p in products:
+            p.chance = p.chance / total_win_chance
+        total_win_chance = 1.0
+        
+    lose_chance = max(0.0, 1.0 - total_win_chance) 
     
     items = [{"id": p.id, "name": p.name, "cost": p.cost, "chance": p.chance} for p in products]
-    items.append({"id": -1, "name": "谢谢惠顾", "cost": 0, "chance": lose_chance}) # The exact losing slice size
+    items.append({"id": -1, "name": "谢谢惠顾", "cost": 0, "chance": lose_chance}) 
     
     return web.json_response(items)
 
@@ -79,8 +85,9 @@ async def spin_wheel(request):
         if not db_user:
             return web.json_response({"error": "User not found in DB"}, status=404)
 
+        # FIX: Added .with_for_update() to prevent race conditions on stock!
         result_prod = await session.execute(
-            select(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0)
+            select(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0).with_for_update()
         )
         products = result_prod.scalars().all()
         
@@ -94,17 +101,21 @@ async def spin_wheel(request):
 
         db_user.vouchers -= spin_cost
         
-        # --- NEW ROULETTE MATH ---
-        # Roll a number between 0.00 and 1.00
+        # Normalize chances if admin misconfigured them to be > 100%
+        total_win_chance = sum(p.chance for p in products)
+        if total_win_chance > 1.0:
+            for p in products:
+                p.chance = p.chance / total_win_chance
+
         roll = random.random()
         cumulative = 0.0
-        winning_index = len(products) # Default to the last index (the "Lose" slice)
+        winning_id = -1 # Default to the "Lose" ID
         won_product = None
         
-        for i, p in enumerate(products):
+        for p in products:
             cumulative += p.chance
             if roll < cumulative:
-                winning_index = i
+                winning_id = p.id # FIX: We now save the ID, not the array index!
                 won_product = p
                 p.stock -= 1
                 if p.stock <= 0:
@@ -125,7 +136,8 @@ async def spin_wheel(request):
             except Exception as e:
                 print(f"Could not notify admin {admin_id}: {e}")   
 
-    return web.json_response({"winning_index": winning_index, "message": "Success"})
+    # FIX: Return the ID so the frontend doesn't get confused if the array shifts
+    return web.json_response({"winning_id": winning_id, "message": "Success"})
 
 # --- 3. Startup Function ---
 async def start_web_server(bot):
