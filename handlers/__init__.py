@@ -33,7 +33,7 @@ def register_handlers(application):
     application.add_handler(MessageHandler(filters.Regex(r'^排名$'), leaderboard.show_leaderboard))
     application.add_handler(MessageHandler(filters.Regex(r'(?i)^(签到|checkin)$'), economy.handle_check_in_request))
     application.add_handler(MessageHandler(filters.Regex(r'^付费抽奖$'), redemption.open_lottery_menu))
-    application.add_handler(MessageHandler(filters.Regex(r'^兑换商店$'), shop.open_shop_menu))
+    application.add_handler(MessageHandler(filters.Regex(r'^积分商店$'), shop.open_shop_menu))
     application.add_handler(MessageHandler(filters.Regex(r'^娱乐抽奖$'), scratchers.open_scratcher_menu))
 
     application.add_handler(CallbackQueryHandler(leaderboard.leaderboard_callback, pattern="^lb_"))

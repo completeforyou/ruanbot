@@ -14,7 +14,7 @@ async def open_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         products = result.scalars().all()
         
         # --- CAPTION TEXT ---
-        msg = f"🛒 积分商城\n"
+        msg = f"🛒 积分商店\n"
         msg += f"━━━━━━━━━━━━━━\n"
         
         keyboard = []
@@ -116,12 +116,14 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if db_user.points >= cost:
             db_user.points -= cost
             product.stock -= 1
+            if product.stock <= 0:
+                await session.delete(product)
             await session.commit()
 
             #ADMIN NOTIFICATION BLOCK
             if config.ADMIN_IDS:
                 notify_msg = (
-                    f"🛍 商城购买通知\n"
+                    f"🛍 商店购买通知\n"
                     f"👤 用户: {user.full_name} (`{user.id}`)\n"
                     f"🎁 兑换: {product.name}\n"
                     f"💰 花费: {cost} 积分"

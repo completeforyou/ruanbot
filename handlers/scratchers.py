@@ -53,6 +53,8 @@ async def handle_scratcher_play(update: Update, context: ContextTypes.DEFAULT_TY
         
         if random.random() < product.chance:
             product.stock -= 1
+            if product.stock <= 0:
+                await session.delete(product)
             await session.commit()
             await context.bot.send_message(
                 chat_id=query.message.chat_id,

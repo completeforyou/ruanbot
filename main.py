@@ -11,6 +11,8 @@ from services.antispam import cleanup_cache
 from services import cleaner, economy as economy_service
 from datetime import time
 from webapp_server import start_web_server
+import aiohttp
+import os
 
 # Logging Setup
 logging.basicConfig(
@@ -32,6 +34,19 @@ async def priority_spam_check(update: Update, context):
     if is_spam:
         raise ApplicationHandlerStop # Stop processing this update immediately
 
+async def keep_webapp_warm(context):
+    """Pings the web app's API every 10 minutes to keep the DB connection and Railway router awake."""
+    port = os.getenv("PORT", 8080)
+    url = f"http://127.0.0.1:{port}/api/wheel_data"
+    
+    try:
+        # We use aiohttp to make a quick invisible request to our own server
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                pass # We don't care about the result, we just wanted to wake it up!
+    except Exception as e:
+        pass # Ignore errors, this is just a background heartbeat
+
 async def post_init(application):
     """Runs asynchronously before the bot starts polling."""
     print("Initializing Database...")
@@ -51,6 +66,8 @@ if __name__ == '__main__':
     application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
 
     application.job_queue.run_daily(economy_service.reset_daily_msg_counts, time=time(hour=16, minute=0))
+
+    application.job_queue.run_repeating(keep_webapp_warm, interval=600, first=10)
 
     application.add_handler(MessageHandler(filters.ALL, priority_spam_check), group=-1)
     

@@ -107,6 +107,8 @@ async def spin_wheel(request):
                 winning_index = i
                 won_product = p
                 p.stock -= 1
+                if p.stock <= 0:
+                    await session.delete(p)
                 break
                 
         await session.commit()
