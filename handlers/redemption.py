@@ -21,14 +21,25 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(msg, parse_mode='Markdown')
         return
 
-    
     for p in products:
         cost = int(p.cost)
-        msg += f"🎁 \n{p.name}\n   • 花费: 🎟 {cost} 兑奖券\n"
-    msg += "\n👇 点击下方按钮进入抽奖页面！"
-    keyboard = [
-        [InlineKeyboardButton("🎰 开启大转盘", web_app=WebAppInfo(url=WEB_APP_URL))]
-    ]
+        msg += f"🎁 {p.name}\n   • 花费: 🎟 {cost} 兑奖券\n"
+
+    # Check Chat Type 
+    if update.effective_chat.type == 'private':
+        # Safe to show the Web App button in DMs!
+        msg += "\n👇 点击下方按钮开启幸运大转盘！"
+        keyboard = [
+            [InlineKeyboardButton("🎰 开启大转盘", web_app=WebAppInfo(url=WEB_APP_URL))]
+        ]
+    else:
+        # If in a group, send a deep-link to the bot's DM
+        bot_username = context.bot.username
+        deep_link = f"https://t.me/{bot_username}?start=lottery"
+        keyboard = [
+            [InlineKeyboardButton("📩 点我开启大转盘", url=deep_link)]
+        ]
+
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def handle_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):

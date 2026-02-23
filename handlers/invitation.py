@@ -69,6 +69,11 @@ async def handle_start_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     payload = args[0]
+
+    if payload == "lottery":
+        from handlers.redemption import open_lottery_menu
+        await open_lottery_menu(update, context)
+        return
     
     if payload.startswith("invite_"):
         parts = payload.split("_")
