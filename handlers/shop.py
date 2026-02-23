@@ -117,6 +117,20 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db_user.points -= cost
             product.stock -= 1
             await session.commit()
+
+            #ADMIN NOTIFICATION BLOCK
+            if config.ADMIN_IDS:
+                notify_msg = (
+                    f"🛍 商城购买通知\n"
+                    f"👤 用户: {user.full_name} (`{user.id}`)\n"
+                    f"🎁 兑换: {product.name}\n"
+                    f"💰 花费: {cost} 积分"
+                )
+                for admin_id in config.ADMIN_IDS:
+                    try:
+                        await context.bot.send_message(chat_id=admin_id, text=notify_msg, parse_mode='Markdown')
+                    except Exception as e:
+                        print(f"Could not notify admin {admin_id}: {e}")
             
             await context.bot.send_message(
                 chat_id=query.message.chat_id,

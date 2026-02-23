@@ -38,7 +38,7 @@ async def post_init(application):
     await init_db()
     print("Database Initialized!")
     print("Starting Web Server...")
-    await start_web_server()
+    await start_web_server(application.bot)
 
 if __name__ == '__main__':
     # Initialize Database    
