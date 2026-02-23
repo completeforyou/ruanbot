@@ -21,9 +21,9 @@ async def start_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Ask Type
     keyboard = [
-        [InlineKeyboardButton("🛒 积分商店 (100% 获得)", callback_data="type_shop")],
-        [InlineKeyboardButton("🃏 积分刮刮乐 (概率获得)", callback_data="type_scratcher")], 
-        [InlineKeyboardButton("🎟 代币抽奖 (概率获得)", callback_data="type_lottery")],
+        [InlineKeyboardButton("🛒 兑换商城 (100% 获得)", callback_data="type_shop")],
+        [InlineKeyboardButton("🃏 娱乐抽奖 (概率获得)", callback_data="type_scratcher")], 
+        [InlineKeyboardButton("🎟 付费抽奖 (概率获得)", callback_data="type_lottery")],
         [InlineKeyboardButton("❌ 取消", callback_data="admin_cancel_prod")]
     ]
     
@@ -43,9 +43,9 @@ async def receive_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['new_product']['type'] = p_type
     
     type_names = {
-        'shop': "🛒 积分商店",
-        'scratcher': "🃏 积分刮刮乐",
-        'lottery': "🎟 代币抽奖"
+        '积分': "🛒 兑换商城",
+        '刮刮乐': "🃏 娱乐抽奖",
+        '付费': "🎟 付费抽奖"
     }
     
     t_name = type_names.get(p_type, p_type)
@@ -61,7 +61,7 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Determine Currency based on type
     # Lottery uses Vouchers, Shop and Scratcher use Points
-    currency = "兑奖券" if p_type == 'lottery' else "积分"
+    currency = "兑奖券" if p_type == '付费' else "积分"
     
     await update.message.reply_text(f"💰 请设置所需 {currency} 数量:", reply_markup=get_cancel_kb())
     return COST
@@ -74,7 +74,7 @@ async def receive_cost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         p_type = context.user_data['new_product']['type']
         
         # If it's a game of chance (Lottery OR Scratcher), ask for probability
-        if p_type in ['lottery', 'scratcher']:
+        if p_type in ['付费', '刮刮乐']:
             await update.message.reply_text("🎲 设置中奖概率 (0 = 0%, 100 = 100%):", reply_markup=get_cancel_kb())
             return CHANCE
         else:
