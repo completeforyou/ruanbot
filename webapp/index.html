@@ -3,11 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>幸运大转盘</title>
+    <title>幸运转盘</title>
+    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/gh/zarous/Winwheel.js@2.8.0/Winwheel.min.js"></script>
+    
     <style>
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--tg-theme-bg-color, #f4f4f4);
             color: var(--tg-theme-text-color, #333);
             display: flex;
@@ -19,24 +25,25 @@
             overflow: hidden;
         }
 
+        /* A nice container to hold the wheel and the pointer */
         .wheel-container {
             position: relative;
-            width: 300px;
-            height: 300px;
+            width: 320px;
+            height: 320px;
             margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        /* The canvas that draws the wheel */
-        #wheel {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
-            /* Smooth spinning transition */
-            transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+        /* The Canvas */
+        #wheelCanvas {
+            z-index: 1;
+            /* Add a subtle shadow behind the wheel */
+            filter: drop-shadow(0px 8px 16px rgba(0,0,0,0.2)); 
         }
 
-        /* The pointer needle in the center/top */
+        /* The beautiful red pointer */
         .pointer {
             position: absolute;
             top: -15px;
@@ -44,66 +51,75 @@
             transform: translateX(-50%);
             width: 0;
             height: 0;
-            border-left: 15px solid transparent;
-            border-right: 15px solid transparent;
-            border-top: 30px solid #ff4757;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #e74c3c;
             z-index: 10;
+            filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.3));
         }
 
+        /* Inner circle decoration */
         .center-circle {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 50px;
-            height: 50px;
-            background-color: white;
+            width: 60px;
+            height: 60px;
+            background-color: #fff;
             border-radius: 50%;
-            border: 4px solid #3498db;
+            border: 6px solid #e74c3c;
             z-index: 5;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            color: #3498db;
+            font-weight: 900;
+            color: #e74c3c;
+            box-shadow: inset 0 3px 5px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.3);
         }
 
         button.spin-btn {
-            background-color: var(--tg-theme-button-color, #3498db);
+            background-color: var(--tg-theme-button-color, #e74c3c);
             color: var(--tg-theme-button-text-color, #ffffff);
             border: none;
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 8px;
+            padding: 16px 45px;
+            font-size: 20px;
+            border-radius: 50px;
             font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 6px 0 #c0392b, 0 10px 10px rgba(0,0,0,0.2);
+            transition: all 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         button.spin-btn:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: translateY(6px);
+            box-shadow: 0 0px 0 #c0392b, 0 4px 4px rgba(0,0,0,0.2);
         }
         
         #result-text {
-            margin-top: 20px;
-            font-size: 18px;
+            margin-top: 25px;
+            font-size: 20px;
             font-weight: bold;
             text-align: center;
-            min-height: 24px;
+            min-height: 28px;
+            color: var(--tg-theme-text-color, #333);
         }
     </style>
 </head>
 <body>
 
-    <h2 id="greeting">🎰 付费抽奖 🎰</h2>
+    <h2 id="greeting" style="margin-bottom: 20px;">🎰 幸运转盘 🎰</h2>
 
     <div class="wheel-container">
         <div class="pointer"></div>
-        <canvas id="wheel" width="400" height="400"></canvas>
+        <canvas id="wheelCanvas" width="320" height="320">
+            Canvas not supported.
+        </canvas>
         <div class="center-circle">GO</div>
     </div>
 
-    <button class="spin-btn" onclick="startSpin()" id="spinBtn">抽奖</button>
+    <button class="spin-btn" onclick="startSpin()" id="spinBtn">🎟 抽奖</button>
     <div id="result-text"></div>
 
     <script>
@@ -114,69 +130,64 @@
             document.getElementById('greeting').innerText = `欢迎, ${tg.initDataUnsafe.user.first_name}!`;
         }
 
-        let sectors = [];
-        const canvas = document.getElementById("wheel");
-        const ctx = canvas.getContext("2d");
-        let currentRotation = 0;
+        let theWheel;
         let isSpinning = false;
+        let wheelData = [];
 
+        // Beautiful pre-selected colors
+        const colors = ["#feca57", "#ff6b6b", "#48dbfb", "#1dd1a1", "#ff9f43", "#5f27cd", "#c8d6e5"];
+
+        // --- 1. Load Data & Initialize Winwheel ---
         async function loadWheelData() {
             try {
                 const response = await fetch('/api/wheel_data');
-                sectors = await response.json();
+                wheelData = await response.json();
                 
-                const colors = ["#f8a5c2", "#786fa6", "#f19066", "#546de5", "#e15f41", "#3dc1d3"];
-                sectors.forEach((sector, i) => {
-                    sector.color = colors[i % colors.length];
+                // Map the Python data into Winwheel's required format
+                let winwheelSegments = wheelData.map((sector, i) => {
+                    return {
+                        'fillStyle': colors[i % colors.length],
+                        'text': sector.name.length > 8 ? sector.name.substring(0,8) + ".." : sector.name,
+                        'size': sector.chance * 360, // Directly converts chance (0.0 - 1.0) into degrees!
+                        'textFontSize': 14,
+                        'textFillStyle': '#ffffff'
+                    };
                 });
-                
-                drawWheel();
+
+                // Create the Wheel Object!
+                theWheel = new Winwheel({
+                    'numSegments': winwheelSegments.length,
+                    'outerRadius': 150,
+                    'textFontSize': 16,
+                    'textOrientation': 'horizontal', 
+                    'textAlignment': 'outer',
+                    'segments': winwheelSegments,
+                    'lineWidth': 2,
+                    'strokeStyle': '#ffffff',
+                    'animation': {
+                        'type': 'spinToStop',
+                        'duration': 4, // 4 seconds of spinning
+                        'spins': 7,    // 7 full rotations before stopping
+                        'easing': 'Power3.easeOut', // Super smooth slow-down effect
+                        'callbackFinished': 'alertPrize()'
+                    }
+                });
+
             } catch (error) {
-                document.getElementById('result-text').innerText = "加载错误，请重试";
+                document.getElementById('result-text').innerText = "加载数据失败，请重试";
             }
         }
 
-        function drawWheel() {
-            if (sectors.length === 0) return;
-            ctx.clearRect(0, 0, 400, 400);
-
-            let startAngle = 0; // Start at 0 radians
-
-            sectors.forEach((sector, i) => {
-                // The size of the slice is directly proportional to its chance (0.0 to 1.0)
-                const sliceAngle = sector.chance * 2 * Math.PI; 
-                
-                ctx.beginPath();
-                ctx.fillStyle = sector.color;
-                ctx.moveTo(200, 200);
-                ctx.arc(200, 200, 200, startAngle, startAngle + sliceAngle);
-                ctx.lineTo(200, 200);
-                ctx.fill();
-
-                ctx.save();
-                ctx.translate(200, 200);
-                // Rotate to the middle of the slice to draw the text
-                ctx.rotate(startAngle + (sliceAngle / 2));
-                ctx.textAlign = "right";
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = "#fff";
-                ctx.font = "bold 20px sans-serif";
-                
-                let label = sector.name.length > 8 ? sector.name.substring(0,8) + ".." : sector.name;
-                ctx.fillText(label, 180, 9);
-                ctx.restore();
-
-                startAngle += sliceAngle; // Move the start angle forward for the next slice
-            });
-        }
-
+        // --- 2. Handle Spin Logic ---
         async function startSpin() {
             if (isSpinning) return;
             isSpinning = true;
-            document.getElementById('result-text').innerText = "抽奖中...";
+
+            document.getElementById('result-text').innerText = "🎰 抽奖中...";
             document.getElementById('spinBtn').style.opacity = "0.5";
 
             try {
+                // Fetch the winning index securely from Python
                 const response = await fetch('/api/spin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -187,62 +198,55 @@
 
                 if (!response.ok) {
                     tg.showAlert(result.error || "发生错误!");
-                    isSpinning = false;
-                    document.getElementById('spinBtn').style.opacity = "1";
+                    resetUI();
                     return;
                 }
 
                 const winningIndex = result.winning_index;
                 
-                // --- 1. Calculate the exact center degree of the winning slice ---
-                let tempChanceSum = 0;
-                for(let i = 0; i < winningIndex; i++){
-                    tempChanceSum += sectors[i].chance;
-                }
-                // Find the center of the winning slice
-                let centerChance = tempChanceSum + (sectors[winningIndex].chance / 2);
-                let targetDegree = centerChance * 360; 
+                // Winwheel segments are 1-indexed (so index 0 is segment 1)
+                const targetSegment = winningIndex + 1;
                 
-                // --- 2. Calculate absolute rotation to bring it to the Top (270 degrees) ---
-                let absoluteTarget = 270 - targetDegree;
-                
-                // Normalize it to ensure it's a positive number between 0 and 360
-                absoluteTarget = ((absoluteTarget % 360) + 360) % 360;
-                
-                // --- 3. Factor in the wheel's current rotation (for 2nd, 3rd spins, etc.) ---
-                let currentMod = currentRotation % 360;
-                currentMod = ((currentMod % 360) + 360) % 360;
-                
-                let rotateDiff = absoluteTarget - currentMod;
-                if (rotateDiff < 0) {
-                    rotateDiff += 360; // Make sure we only spin forward
-                }
-                
-                // --- 4. Add dramatic extra spins (5 full spins = 1800 degrees) ---
-                currentRotation += (1800 + rotateDiff);
-                canvas.style.transform = `rotate(${currentRotation}deg)`;
+                // Reset the wheel's rotation just in case they are spinning a 2nd time
+                theWheel.stopAnimation(false);
+                theWheel.rotationAngle = 0;
 
-                setTimeout(() => {
-                    isSpinning = false;
-                    document.getElementById('spinBtn').style.opacity = "1";
-                    
-                    const wonName = sectors[winningIndex].name;
-                    document.getElementById('result-text').innerText = `🎉 结果: ${wonName}`;
-                    
-                    if (winningIndex === sectors.length - 1) {
-                         tg.HapticFeedback.notificationOccurred("warning"); 
-                    } else {
-                         tg.HapticFeedback.notificationOccurred("success"); 
-                    }
-                }, 4000);
+                // Winwheel magically calculates the exact angle to land on!
+                let stopAt = theWheel.getRandomForSegment(targetSegment);
+                
+                theWheel.animation.stopAngle = stopAt;
+                
+                // Start the smooth animation
+                theWheel.startAnimation();
 
             } catch (error) {
                 tg.showAlert("网络错误，请稍后重试。");
-                isSpinning = false;
-                document.getElementById('spinBtn').style.opacity = "1";
+                resetUI();
             }
         }
 
+        // --- 3. Finished Callback ---
+        // This is automatically called by Winwheel when the spinning completely stops
+        function alertPrize() {
+            const winningSegment = theWheel.getIndicatedSegment();
+            document.getElementById('result-text').innerText = `🎉 结果: ${winningSegment.text}`;
+            
+            // Check if it's the "Lose" slice (We named it "谢谢惠顾" in Python)
+            if (winningSegment.text === "谢谢惠顾") {
+                tg.HapticFeedback.notificationOccurred("warning"); 
+            } else {
+                tg.HapticFeedback.notificationOccurred("success"); 
+            }
+            
+            resetUI();
+        }
+
+        function resetUI() {
+            isSpinning = false;
+            document.getElementById('spinBtn').style.opacity = "1";
+        }
+
+        // Boot it up!
         loadWheelData();
     </script>
 </body>
