@@ -158,11 +158,12 @@
                 // Rotate to the middle of the slice to draw the text
                 ctx.rotate(startAngle + (sliceAngle / 2));
                 ctx.textAlign = "right";
+                ctx.textBaseline = "middle";
                 ctx.fillStyle = "#fff";
                 ctx.font = "bold 20px sans-serif";
                 
                 let label = sector.name.length > 8 ? sector.name.substring(0,8) + ".." : sector.name;
-                ctx.fillText(label, 180, 10);
+                ctx.fillText(label, 180, 9);
                 ctx.restore();
 
                 startAngle += sliceAngle; // Move the start angle forward for the next slice
@@ -193,21 +194,32 @@
 
                 const winningIndex = result.winning_index;
                 
-                // --- FIND THE EXACT ANGLE OF THE WINNING SLICE ---
-                let angleToWinnerCenter = 0;
+                // --- 1. Calculate the exact center degree of the winning slice ---
                 let tempChanceSum = 0;
-                
                 for(let i = 0; i < winningIndex; i++){
                     tempChanceSum += sectors[i].chance;
                 }
-                // Add half of the winning slice's chance to point to its center
+                // Find the center of the winning slice
                 let centerChance = tempChanceSum + (sectors[winningIndex].chance / 2);
                 let targetDegree = centerChance * 360; 
                 
-                const extraSpins = 1800; // 5 full spins
-                const stopAngle = extraSpins + (360 - targetDegree) - 90; // -90 because the pointer is at the top
+                // --- 2. Calculate absolute rotation to bring it to the Top (270 degrees) ---
+                let absoluteTarget = 270 - targetDegree;
                 
-                currentRotation += stopAngle;
+                // Normalize it to ensure it's a positive number between 0 and 360
+                absoluteTarget = ((absoluteTarget % 360) + 360) % 360;
+                
+                // --- 3. Factor in the wheel's current rotation (for 2nd, 3rd spins, etc.) ---
+                let currentMod = currentRotation % 360;
+                currentMod = ((currentMod % 360) + 360) % 360;
+                
+                let rotateDiff = absoluteTarget - currentMod;
+                if (rotateDiff < 0) {
+                    rotateDiff += 360; // Make sure we only spin forward
+                }
+                
+                // --- 4. Add dramatic extra spins (5 full spins = 1800 degrees) ---
+                currentRotation += (1800 + rotateDiff);
                 canvas.style.transform = `rotate(${currentRotation}deg)`;
 
                 setTimeout(() => {

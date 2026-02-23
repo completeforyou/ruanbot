@@ -13,8 +13,9 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result_prod = await session.execute(select(Product).filter_by(is_active=True, type='lottery').filter(Product.stock > 0))
         products = result_prod.scalars().all()
 
-    msg = f"🎰 付费抽奖 🎰\n"
+    msg = f"🍓本群付费抽奖🍓\n"
     msg += f"━━━━━━━━━━━━━━\n"
+    msg += f"现有奖品\n"
     
     if not products:
         msg += "目前没有进行中的抽奖活动。"
@@ -22,12 +23,12 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     for p in products:
-        msg += f"🎁 现有奖品{p.name}\n"
+        msg += f"🎁 {p.name}\n"
 
     # Check Chat Type 
     if update.effective_chat.type == 'private':
         # Safe to show the Web App button in DMs!
-        msg += "\n👇 点击下方按钮开启幸运大转盘！"
+        msg += "\n👇 点击下方按钮开启转盘！"
         keyboard = [
             [InlineKeyboardButton("🎰 开启大转盘", web_app=WebAppInfo(url=WEB_APP_URL))]
         ]
@@ -36,7 +37,7 @@ async def open_lottery_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_username = context.bot.username
         deep_link = f"https://t.me/{bot_username}?start=lottery"
         keyboard = [
-            [InlineKeyboardButton("📩 点我开启大转盘", url=deep_link)]
+            [InlineKeyboardButton("📩 点我开启转盘", url=deep_link)]
         ]
 
     await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
