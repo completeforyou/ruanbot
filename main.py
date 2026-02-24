@@ -63,7 +63,7 @@ if __name__ == '__main__':
     req = HTTPXRequest(connection_pool_size=8, read_timeout=60, connect_timeout=60)
     application = ApplicationBuilder().token(config.TOKEN).request(req).post_init(post_init).build()
 
-    application.job_queue.run_repeating(cleanup_cache, interval=3600, first=3600)
+    application.job_queue.run_repeating(cleanup_cache, interval=120, first=120)
 
     application.job_queue.run_daily(economy_service.reset_daily_msg_counts, time=time(hour=16, minute=0))
 
