@@ -37,7 +37,7 @@ def generate_gif_captcha(user_id: int):
         format='GIF', 
         save_all=True, 
         append_images=frames[1:], 
-        duration=100, 
+        duration=200, 
         loop=0
     )
     gif_io.seek(0)
@@ -46,10 +46,27 @@ def generate_gif_captcha(user_id: int):
     # 5. Create a pool of 6 answers
     answers = [correct_ans]
     while len(answers) < 6:
-        fake = ''.join(random.choices(characters, k=4))
+        # Start with the correct answer as the base for our fake
+        fake_chars = list(correct_ans)
+        
+        # Randomly choose to change either 1 or 2 characters to make it confusing
+        num_changes = random.choice([1, 2])
+        
+        # Pick which random positions (0, 1, 2, or 3) to change
+        indices_to_change = random.sample(range(4), num_changes)
+        
+        for idx in indices_to_change:
+            # Pick a new character that is DIFFERENT from the current character
+            possible_chars = [c for c in characters if c != fake_chars[idx]]
+            fake_chars[idx] = random.choice(possible_chars)
+            
+        fake = ''.join(fake_chars)
+        
+        # Make sure we don't add duplicate fakes
         if fake not in answers:
             answers.append(fake)
             
+    # Shuffle so the correct answer isn't always the first button
     random.shuffle(answers)
     
     _pending_verifications[user_id] = {
