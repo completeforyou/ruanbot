@@ -72,28 +72,28 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass 
 
     # 4. Generate Math Challenge
-    question_text, answers = verification.generate_math_question(user.id)
+    gif_data, answers = verification.generate_gif_captcha(user.id)
 
     # 5. Build Math Buttons
     keyboard = []
-    math_row = []
+    btn_row = []
     for ans in answers:
-        math_row.append(InlineKeyboardButton(str(ans), callback_data=f"verify_{user.id}_{ans}"))
-        if len(math_row) == 2: 
-            keyboard.append(math_row)
-            math_row = []
-    if math_row: keyboard.append(math_row)
+        btn_row.append(InlineKeyboardButton(ans, callback_data=f"verify_{user.id}_{ans}"))
+        if len(btn_row) == 3: 
+            keyboard.append(btn_row)
+            btn_row = []
+    if btn_row: keyboard.append(btn_row)
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # 6. Send Simple Captcha Message
+    # 6. Send the GIF Captcha (Using send_animation instead of send_message)
     try:
-        captcha_msg = await context.bot.send_message(
+        captcha_msg = await context.bot.send_animation(
             chat_id=chat.id,
-            text=f"🛑 欢迎加入, {user.mention_html()}!\n\n"
+            animation=gif_data, # Send our in-memory GIF
+            caption=f"🛑 欢迎加入, {user.mention_html()}!\n\n"
                  f"🛡 请完成验证\n"
-                 f"请在三分钟内解答这道数学题,以验证你是人类:\n\n"
-                 f"{question_text}",
+                 f"请在三分钟内选择与上方动图中一致的 4 个字符，以验证你是人类:",
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
@@ -126,7 +126,7 @@ async def verify_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     parts = query.data.split('_')
     target_user_id = int(parts[1])
-    clicked_answer = int(parts[2])
+    clicked_answer = parts[2]
 
     if clicker.id != target_user_id:
         await query.answer("❌ 你无需进行此验证!", show_alert=True)

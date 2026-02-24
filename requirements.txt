@@ -5,3 +5,5 @@ asyncpg==0.30.0
 aiosqlite==0.20.0
 greenlet>=3.0.0
 aiohttp==3.9.5
+captcha==0.7.1
+Pillow==12.1.1
