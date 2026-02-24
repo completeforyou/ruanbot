@@ -65,6 +65,14 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_status = conf.get('admin_media_exempt', True)
         await economy.update_system_config(admin_media_exempt=not current_status)
         await show_config_menu(update)
+    elif data == "admin_confirm_removeall":
+        success = await economy.reset_all_points()
+        if success:
+            await query.edit_message_text("✅ 月度清理完成！已成功重置所有用户的积分。")
+        else:
+            await query.edit_message_text("❌ 清空失败，请检查后台日志。")
+    elif data == "admin_cancel_removeall":
+        await query.edit_message_text("🚫 操作已取消。用户积分未发生改变。")
 
 # --- SUB-MENUS ---
 
@@ -283,6 +291,123 @@ async def give_voucher_command(update: Update, context: ContextTypes.DEFAULT_TYP
             "2. 通过ID: `/give <ID> <数量>`", 
             parse_mode='Markdown'
         )
+
+@admin_only
+async def remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /remove points <amount> (Reply)
+    /remove points <user_id> <amount>
+    /remove vouchers <amount> (Reply)
+    /remove vouchers <user_id> <amount>
+    """
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "用法:\n"
+            "回复: `/remove <points|vouchers> <数量>`\n"
+            "通过ID: `/remove <points|vouchers> <ID> <数量>`", 
+            parse_mode='Markdown'
+        )
+        return
+
+    asset_type = args[0].lower()
+    if asset_type not in ['points', 'vouchers']:
+        await update.message.reply_text("⚠️ 请指定 points 或 vouchers")
+        return
+
+    target_id = None
+    target_name = "用户"
+    amount = None
+
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_id = target_user.id
+        target_name = target_user.full_name
+        try:
+            amount = float(args[1]) if asset_type == 'points' else int(args[1])
+        except:
+            pass
+    elif len(args) >= 3:
+        try:
+            target_id = int(args[1])
+            amount = float(args[2]) if asset_type == 'points' else int(args[2])
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(User).filter_by(id=target_id))
+                db_user = result.scalars().first()
+                if db_user:
+                    target_name = db_user.full_name
+        except:
+            pass
+
+    if target_id and amount is not None:
+        user_mention = mention_html(target_id, target_name)
+        if asset_type == 'points':
+            await economy.remove_points(target_id, amount)
+            await update.message.reply_text(f"✅ 已从 {user_mention} 扣除 {amount} 积分", parse_mode='HTML')
+        else:
+            await economy.remove_vouchers(target_id, int(amount))
+            await update.message.reply_text(f"✅ 已从 {user_mention} 扣除 {int(amount)} 兑奖券", parse_mode='HTML')
+    else:
+        await update.message.reply_text("⚠️ 参数错误或未找到用户。")
+
+@admin_only
+async def check_user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /id <user_id>
+    Checks a specific user's points and vouchers.
+    """
+    args = context.args
+    
+    # Check if an ID was provided
+    if not args or not args[0].isdigit():
+        await update.message.reply_text("用法: `/id <用户ID>`", parse_mode='Markdown')
+        return
+
+    target_id = int(args[0])
+    
+    # Fetch user data from the database
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).filter_by(id=target_id))
+        db_user = result.scalars().first()
+        
+    if not db_user:
+        await update.message.reply_text("❌ 数据库中未找到该用户。")
+        return
+
+    # Extract balances and format the message
+    balance = db_user.points
+    vouchers = db_user.vouchers
+    user_mention = mention_html(target_id, db_user.full_name)
+
+    await update.message.reply_text(
+        f"👤 用户: {user_mention} (<code>{target_id}</code>)\n"
+        f"💰 积分: <code>{int(balance)}</code>\n"
+        f"🎟 兑奖券: <code>{int(vouchers)}</code>",
+        parse_mode='HTML'
+    )
+
+@admin_only
+async def remove_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /removeall
+    Triggers a confirmation prompt before wiping all user points.
+    """
+    text = (
+        "⚠️ 危险操作警告 ⚠️\n\n"
+        "您即将清空所有用户的积分！这通常用于月度重置。\n"
+        "此操作不可逆转。\n\n"
+        "请确认是否继续？"
+    )
+    keyboard = [
+        [InlineKeyboardButton("✅ 确认清空 (不可逆)", callback_data="admin_confirm_removeall")],
+        [InlineKeyboardButton("❌ 取消操作", callback_data="admin_cancel_removeall")]
+    ]
+    
+    await update.message.reply_text(
+        text, 
+        reply_markup=InlineKeyboardMarkup(keyboard), 
+        parse_mode='Markdown'
+    )
 
 
 

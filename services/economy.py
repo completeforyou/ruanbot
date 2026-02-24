@@ -249,3 +249,51 @@ async def process_check_in(user_id: int, username: str, full_name: str):
             print(f"Check-in Error: {e}")
             await session.rollback()
             return False, "❌ System error.", 0.0
+
+async def remove_points(user_id: int, amount: float):
+    async with AsyncSessionLocal() as session:
+        try:
+            # We lock the row during the update to prevent math errors if they are chatting rapidly
+            result = await session.execute(select(User).filter_by(id=user_id).with_for_update())
+            user = result.scalars().first()
+            if user:
+                # Ensure points never drop below 0
+                user.points = max(0.0, user.points - amount)
+                await session.commit()
+                print(f"💸 Points Removed! User: {user_id}, Amount: -{amount}")
+                return True
+        except Exception as e:
+            await session.rollback()
+            print(f"❌ DB Error removing points: {e}")
+        return False
+
+async def remove_vouchers(user_id: int, amount: int):
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(select(User).filter_by(id=user_id).with_for_update())
+            user = result.scalars().first()
+            if user:
+                # Ensure vouchers never drop below 0
+                user.vouchers = max(0, user.vouchers - amount)
+                await session.commit()
+                print(f"🎟 Vouchers Removed! User: {user_id}, Amount: -{amount}")
+                return True
+        except Exception as e:
+            await session.rollback()
+            print(f"❌ DB Error removing vouchers: {e}")
+        return False
+    
+async def reset_all_points() -> bool:
+    """Resets every user's points to 0.0 in the database."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # Update all rows in the User table
+            stmt = update(User).values(points=0.0)
+            await session.execute(stmt)
+            await session.commit()
+            print("⚠️ MONTHLY WIPE: All user points have been reset to 0.")
+            return True
+        except Exception as e:
+            print(f"❌ Error resetting all points: {e}")
+            await session.rollback()
+            return False
