@@ -124,13 +124,13 @@ async def handle_shop_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if config.ADMIN_IDS:
                 notify_msg = (
                     f"🛍 商店购买通知\n"
-                    f"👤 用户: {user.full_name} (`{user.id}`)\n"
+                    f"👤 用户: <a href='tg://user?id={user.id}'>{user.full_name}</a> (<code>{user.id}</code>)\n"
                     f"🎁 兑换: {product.name}\n"
                     f"💰 花费: {cost} 积分"
                 )
                 for admin_id in config.ADMIN_IDS:
                     try:
-                        await context.bot.send_message(chat_id=admin_id, text=notify_msg, parse_mode='Markdown')
+                        await context.bot.send_message(chat_id=admin_id, text=notify_msg, parse_mode='HTML')
                     except Exception as e:
                         print(f"Could not notify admin {admin_id}: {e}")
             

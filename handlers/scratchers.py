@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 from database import AsyncSessionLocal, Product, User
 from sqlalchemy import select
 import random
+import config
 
 async def open_scratcher_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows only SCRATCHER items (Cost = Points)."""
@@ -56,9 +57,21 @@ async def handle_scratcher_play(update: Update, context: ContextTypes.DEFAULT_TY
             if product.stock <= 0:
                 await session.delete(product)
             await session.commit()
+            if config.ADMIN_IDS:
+                notify_msg = (
+                    f"🃏 刮刮乐中奖通知\n"
+                    f"👤 用户: <a href='tg://user?id={user.id}'>{user.full_name}</a> (<code>{user.id}</code>)\n"
+                    f"🎁 赢取: {product.name}\n"
+                    f"💰 花费: {cost} 积分"
+                )
+                for admin_id in config.ADMIN_IDS:
+                    try:
+                        await context.bot.send_message(chat_id=admin_id, text=notify_msg, parse_mode='HTML')
+                    except Exception as e:
+                        print(f"Could not notify admin {admin_id}: {e}")
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"🎉 **中奖啦!!** 🎉\n\n{user.mention_html()} 刮开了一张卡片并赢得了: \n**{product.name}**!",
+                text=f"🎉 中奖啦!!</b> 🎉\n\n{user.mention_html()} 刮开了一张卡片并赢得了: \n**{product.name}**!",
                 parse_mode='HTML'
             )
             await query.answer("🎉 恭喜中奖!!!!!", show_alert=True)

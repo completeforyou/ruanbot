@@ -127,12 +127,12 @@ async def spin_wheel(request):
     if won_product and _bot_instance and config.ADMIN_IDS:
         notify_msg = (
             f"🎰 转盘中奖通知\n"
-            f"👤 用户: {user_name} (`{user_id}`)\n"
+            f"👤 用户: <a href='tg://user?id={user_id}'>{user_name}</a> (<code>{user_id}</code>)\n"
             f"🎁 赢取: {won_product.name}\n"
         )
         for admin_id in config.ADMIN_IDS:
             try:
-                await _bot_instance.send_message(chat_id=admin_id, text=notify_msg, parse_mode='Markdown')
+                await _bot_instance.send_message(chat_id=admin_id, text=notify_msg, parse_mode='HTML')
             except Exception as e:
                 print(f"Could not notify admin {admin_id}: {e}")   
 
