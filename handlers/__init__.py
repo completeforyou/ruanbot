@@ -24,6 +24,7 @@ def register_handlers(application):
     application.add_handler(CommandHandler("remove", admin.remove_command))
     application.add_handler(CommandHandler("id", admin.check_user_id_command))
     application.add_handler(CommandHandler("removeall", admin.remove_all_command))
+    application.add_handler(CommandHandler("help", admin.help_command))
    
     
     # --- ADMIN CALLBACK ROUTING ---

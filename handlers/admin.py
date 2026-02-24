@@ -1,4 +1,5 @@
 # handlers/admin.py
+import config
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.helpers import mention_html
@@ -408,6 +409,40 @@ async def remove_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard), 
         parse_mode='Markdown'
     )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /help
+    Shows a cheat sheet of all available commands.
+    Admins see a hidden expanded list.
+    """
+    user_id = update.effective_user.id
+
+    # 1. Base commands that everyone can use
+    text = (
+        "🤖 机器人指令大全 🤖\n\n"
+        "👤 用户指令 (直接发送文字即可)\n"
+        "• `签到` - 每日签到获取积分\n"
+        "• `积分` - 查看当前积分和兑奖券余额\n"
+        "• `排名` - 查看积分和活跃排行榜\n"
+        "• `专属链接` - 生成你的专属群邀请链接\n"
+        "• `积分商店` - 打开积分兑换商店\n"
+        "• `娱乐抽奖` - 开启积分刮刮乐\n"
+        "• `付费抽奖` - 开启兑奖券转盘\n"
+    )
+
+    # 2. Secret admin commands appended if the user is an admin
+    if user_id in config.ADMIN_IDS:
+        text += (
+            "\n👑 管理员专用指令\n"
+            "• `/give <数量>` - 回复某人，给予兑奖券\n"
+            "• `/remove points <数量>` - 扣除某人的积分\n"
+            "• `/remove vouchers <数量>` - 扣除某人的兑奖券\n"
+            "• `/id <用户ID>` - 查看某人的余额\n"
+            "• `/removeall` - 月度清理：清空全部积分\n"
+        )
+
+    await update.message.reply_text(text, parse_mode='Markdown')
 
 
 
