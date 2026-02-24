@@ -41,6 +41,7 @@ def generate_gif_captcha(user_id: int):
         loop=0
     )
     gif_io.seek(0)
+    gif_io.name = "captcha.gif"
     
     # 5. Create a pool of 6 answers
     answers = [correct_ans]
