@@ -71,8 +71,8 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         print(f"⚠️ Warning: Could not mute {user.full_name} (Likely Admin/Owner): {e}")
         pass 
 
-    # 4. Generate Math Challenge
-    gif_data, answers = verification.generate_gif_captcha(user.id)
+    # 4. Generate Challenge
+    gif_data, answers = await asyncio.to_thread(verification.generate_gif_captcha, user.id)
 
     # 5. Build Math Buttons
     keyboard = []

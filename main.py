@@ -60,7 +60,7 @@ if __name__ == '__main__':
     if not config.TOKEN:
         print("Error: TOKEN not found in config.py")
         exit(1)
-    req = HTTPXRequest(connection_pool_size=8, read_timeout=60, connect_timeout=60)
+    req = HTTPXRequest(connection_pool_size=32, read_timeout=60, connect_timeout=60)
     application = ApplicationBuilder().token(config.TOKEN).request(req).post_init(post_init).build()
 
     application.job_queue.run_repeating(cleanup_cache, interval=120, first=120)
