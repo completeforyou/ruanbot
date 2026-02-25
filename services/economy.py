@@ -8,7 +8,17 @@ from datetime import datetime
 # --- CACHE ---
 _config_cache = None
 
+_known_users = set()
+
 async def get_or_create_user(user_id: int, username: str, full_name: str):
+    # Check our fast memory first
+    if user_id in _known_users:
+        return
+        
+    # Optional Safety Check: If memory gets too big, clear it
+    if len(_known_users) > 10000:
+        _known_users.clear()
+        
     async with AsyncSessionLocal() as session:
         try:
             result = await session.execute(select(User).filter_by(id=user_id))
@@ -18,6 +28,10 @@ async def get_or_create_user(user_id: int, username: str, full_name: str):
                 session.add(user)
                 await session.commit()
                 print(f"🆕 New user created: {full_name} ({user_id})")
+            
+            # Remember them!
+            _known_users.add(user_id) 
+            
         except Exception as e:
             await session.rollback()
             print(f"❌ DB Error get_or_create: {e}")
