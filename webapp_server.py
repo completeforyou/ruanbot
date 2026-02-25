@@ -7,7 +7,7 @@ import hmac
 import hashlib
 from aiohttp import web
 from sqlalchemy import select
-
+from telegram import Update
 import config
 from database import AsyncSessionLocal
 from models.product import Product
@@ -139,23 +139,43 @@ async def spin_wheel(request):
     # FIX: Return the ID so the frontend doesn't get confused if the array shifts
     return web.json_response({"winning_id": winning_id, "message": "Success"})
 
-# --- 3. Startup Function ---
-async def start_web_server(bot):
-    """Starts the aiohttp server on the port Railway provides."""
-    global _bot_instance
-    _bot_instance = bot
+_app_instance = None # NEW: We need to store the whole application, not just the bot
+
+# --- NEW: Telegram Webhook Route ---
+async def telegram_webhook(request):
+    """Receives messages directly from Telegram and feeds them to the bot."""
+    # Security: Verify the request contains our secret token in the URL
+    if request.path != f"/webhook_{config.TOKEN}":
+        return web.Response(status=401)
+        
+    if _app_instance:
+        data = await request.json()
+        # Convert the JSON payload back into a Telegram Update object
+        update = Update.de_json(data=data, bot=_app_instance.bot)
+        # Feed it into the bot's internal processing queue
+        await _app_instance.update_queue.put(update)
+        
+    return web.Response(text="OK")
+
+# --- MODIFIED: Startup Function ---
+async def start_web_server(application): # CHANGED: Accepts 'application' instead of 'bot'
+    global _bot_instance, _app_instance
+    _app_instance = application
+    _bot_instance = application.bot
 
     app = web.Application()
     app.router.add_get('/', serve_index)
     app.router.add_get('/api/wheel_data', get_wheel_data)
     app.router.add_post('/api/spin', spin_wheel)
     
+    # NEW: Add the webhook listener (Using the token in the URL makes it unguessable)
+    app.router.add_post(f'/webhook_{config.TOKEN}', telegram_webhook)
+    
     runner = web.AppRunner(app)
     await runner.setup()
     
-    # Railway passes the required port in the 'PORT' environment variable
     port = int(os.getenv("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     
     await site.start()
-    print(f"🌐 Web App Server running on port {port}")
+    print(f"🌐 Web App Server & Webhook running on port {port}")

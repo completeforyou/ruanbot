@@ -13,6 +13,7 @@ from datetime import time
 from webapp_server import start_web_server
 import aiohttp
 import os
+import asyncio
 
 # Logging Setup
 logging.basicConfig(
@@ -47,35 +48,50 @@ async def keep_webapp_warm(context):
     except Exception as e:
         pass # Ignore errors, this is just a background heartbeat
 
-async def post_init(application):
-    """Runs asynchronously before the bot starts polling."""
+async def main():
+    """The new async boot sequence for Webhooks."""
     print("Initializing Database...")
     await init_db()
     print("Database Initialized!")
-    print("Starting Web Server...")
-    await start_web_server(application.bot)
 
-if __name__ == '__main__':
-    # Initialize Database    
     if not config.TOKEN:
         print("Error: TOKEN not found in config.py")
         exit(1)
+
     req = HTTPXRequest(connection_pool_size=32, read_timeout=60, connect_timeout=60)
-    application = ApplicationBuilder().token(config.TOKEN).request(req).post_init(post_init).build()
+    application = ApplicationBuilder().token(config.TOKEN).request(req).build()
 
+    # Setup Scheduled Jobs
     application.job_queue.run_repeating(cleanup_cache, interval=120, first=120)
-
     application.job_queue.run_daily(economy_service.reset_daily_msg_counts, time=time(hour=16, minute=0))
 
-    application.job_queue.run_repeating(keep_webapp_warm, interval=600, first=10)
-
+    # Register Handlers
     application.add_handler(MessageHandler(filters.ALL, priority_spam_check), group=-1)
-    
-    # --- Register Handlers ---
     register_handlers(application)
-    
-    # Global Message Handler
     application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), global_message_handler))
-    
-    print("Bot is running...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    # --- THE WEBHOOK ARCHITECTURE ---
+    # This block safely initializes, starts, and eventually stops the bot
+    async with application:
+        await application.start()
+        
+        # 1. Tell Telegram where to push new messages
+        # IMPORTANT: Replace the URL below with your ACTUAL Railway URL
+        BASE_URL = "https://ruanbot-production.up.railway.app"
+        webhook_url = f"{BASE_URL}/webhook_{config.TOKEN}"
+        
+        await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
+        print(f"🔗 Webhook securely set to: {BASE_URL}/webhook_***")
+
+        # 2. Start our aiohttp web server to listen for those messages
+        await start_web_server(application)
+        
+        print("🟢 Bot is running in Webhook mode! CPU usage will now rest at 0%.")
+        
+        # 3. Keep the program running forever
+        stop_signal = asyncio.Event()
+        await stop_signal.wait()
+
+if __name__ == '__main__':
+    # Run the async main loop
+    asyncio.run(main())
